@@ -47,5 +47,8 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.4.5",
     "utf-8-validate": "^5.0.2"
+  },
+  "overrides": {
+    "@coinbase/wallet-sdk": "canary"
   }
 }
