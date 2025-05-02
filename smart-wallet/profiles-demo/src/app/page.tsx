@@ -2,87 +2,62 @@
 
 import { ProviderInterface } from "@coinbase/wallet-sdk";
 import { useEffect, useState } from "react";
-import { encodeFunctionData, numberToHex, parseUnits } from "viem";
-import { useAccount, useConnect, useDisconnect} from "wagmi";
-import { erc20Abi } from "viem";
+import { encodeFunctionData, erc20Abi, numberToHex, parseUnits } from "viem";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
 
 export default function Home() {
-  const [provider, setProvider] = useState<ProviderInterface | undefined>(undefined);
-  const [isEmailEnabled, setIsEmailEnabled] = useState(true);
-  const [isAddressEnabled, setIsAddressEnabled] = useState(true);
+  const [provider, setProvider] = useState(undefined);
+  const [dataToRequest, setDataToRequest] = useState({
+    email: true,
+    address: true
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<{
-    success: boolean;
-    error?: string;
-    email?: string;
-    physicalAddress?: string;
-  } | null>(null);
+  const [result, setResult] = useState(null);
 
-  const account = useAccount()
-  const { connectors, connect, status, error } = useConnect()
-  const { disconnect } = useDisconnect()
-  
-  // Initialize the Coinbase Wallet SDK
+  const account = useAccount();
+  const { connectors, connect, status, error } = useConnect();
+  const { disconnect } = useDisconnect();
+
+  // Initialize provider when account connected
   useEffect(() => {
-    const fetchProvider = async () => {
+    async function getProvider() {
       if (account.status === 'connected' && account.connector) {
-        console.log("account", account);
         const provider = await account.connector.getProvider();
-        console.log("provider", provider);
-        setProvider(provider as ProviderInterface);
+        setProvider(provider);
       }
-    };
-    
-    fetchProvider();
+    }
+    getProvider();
   }, [account]);
 
-  const getCallbackURL = () => {
-    // Replace this with your ngrok URL when developing locally
-    const ngrokUrl = "https://a2db-86-58-220-2.ngrok-free.app";
-    
-    // Use this in production
-    const prodUrl = window.location.origin;
-    
-    // Choose which URL to use based on environment
-    const baseUrl = process.env.NODE_ENV === "development" ? ngrokUrl : prodUrl;
-    
-    return `${baseUrl}/api/data-validation`;
-  };
+  // Function to get callback URL - replace in production
+  function getCallbackURL() {
+    return "https://your-ngrok-url.ngrok-free.app/api/data-validation";
+  }
 
-  const handleSubmit = async () => {
+  // Handle form submission
+  async function handleSubmit() {
     try {
       setIsLoading(true);
       setResult(null);
 
-      // Build the list of requested data types
+      // Build requests array based on checkboxes
       const requests = [];
-      
-      if (isEmailEnabled) {
-        requests.push({ type: "email", optional: false });
-      }
-      
-      if (isAddressEnabled) {
-        requests.push({ type: "physicalAddress", optional: false });
-      }
-      
-      // Check if at least one data type is requested
+      if (dataToRequest.email) requests.push({ type: "email", optional: false });
+      if (dataToRequest.address) requests.push({ type: "physicalAddress", optional: false });
+
       if (requests.length === 0) {
+        setResult({ success: false, error: "Select at least one data type" });
         setIsLoading(false);
-        setResult({
-          success: false,
-          error: "Please enable at least one data type collection",
-        });
         return;
       }
 
-      // Make the request to Coinbase Wallet
+      // Request data from wallet
       const response = await provider?.request({
         method: "wallet_sendCalls",
-        params: [
-          {
-            version: "1.0",
-            chainId: numberToHex(84532), // Base Sepolia testnet
-            calls: [
+        params: [{
+          version: "1.0",
+          chainId: numberToHex(84532), // Base Sepolia
+          calls: [
               {
                 to: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC contract address on Base Sepolia
                 data: encodeFunctionData({
@@ -95,180 +70,125 @@ export default function Home() {
                 }),
               },
             ], // Simple transfer of 0.01 ETH to the contract
-            capabilities: {
-              dataCallback: {
-                requests: requests,
-                callbackURL: getCallbackURL(),
-              },
+          capabilities: {
+            dataCallback: {
+              requests: requests,
+              callbackURL: getCallbackURL(),
             },
           },
-        ],
+        }],
       });
 
-      // Process the response
-      if (response && typeof response === "object" && "capabilities" in response) {
-        const dataCallback = response.capabilities.dataCallback;
-        const processedResult: any = { success: true };
-        
-        // Extract email if available
-        if ("email" in dataCallback && dataCallback.email) {
-          processedResult.email = dataCallback.email;
+      // Process response
+      if (response?.capabilities?.dataCallback) {
+        const data = response.capabilities.dataCallback;
+        const result = { success: true };
+
+        // Extract email if provided
+        if (data.email) result.email = data.email;
+
+        // Extract address if provided
+        if (data.physicalAddress) {
+          const addr = data.physicalAddress.physicalAddress;
+          result.address = [
+            addr.address1,
+            addr.address2,
+            addr.city,
+            addr.state,
+            addr.postalCode,
+            addr.countryCode
+          ].filter(Boolean).join(", ");
         }
-        
-        // Extract physical address if available
-        if ("physicalAddress" in dataCallback && dataCallback.physicalAddress) {
-          const address = dataCallback.physicalAddress.physicalAddress;
-          const addressParts = [
-            address.name?.firstName && address.name?.familyName
-              ? `${address.name.firstName} ${address.name.familyName}`
-              : "",
-            address.address1,
-            address.address2,
-            address.city,
-            address.state,
-            address.postalCode,
-            address.countryCode,
-          ].filter(Boolean);
-          
-          processedResult.physicalAddress = addressParts.join(", ");
-        }
-        
-        setResult(processedResult);
+
+        setResult(result);
       } else {
-        setResult({
-          success: false,
-          error: "Invalid response from wallet",
-        });
+        setResult({ success: false, error: "Invalid response" });
       }
-
-      setIsLoading(false);
     } catch (error) {
+      setResult({ success: false, error: error.message || "Transaction failed" });
+    } finally {
       setIsLoading(false);
-      setResult({
-        success: false,
-        error: (error as Error)?.message || "Transaction failed",
-      });
     }
-  };
+  }
 
   return (
-    <div className="flex flex-col items-center gap-4 w-screen min-h-screen p-4 bg-gray-900 text-gray-100">
-      <div className="w-full max-w-4xl mt-8">
-        <div>
-          Status: {account.status}
-          <br />
-          Sub Account Address: {JSON.stringify(account.addresses)}
-          <br />
-          ChainId: {account.chainId}
-        </div>
+    <div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
+      <h1>Profiles Demo</h1>
 
-        {account.status === 'connected' && (
-          <button 
-            type="button" 
-            onClick={() => disconnect()}
-            className="bg-red-600 text-white px-4 py-2 rounded-md mt-2"
-          >
-            Disconnect
-          </button>
+      {/* Wallet Status */}
+      <div style={{ marginBottom: "20px" }}>
+        <p>Status: {account.status}</p>
+        {account.status === 'connected' ? (
+          <button onClick={disconnect}>Disconnect</button>
+        ) : (
+          connectors
+            .filter(c => c.name === 'Coinbase Wallet')
+            .map(connector => (
+              <button key={connector.uid} onClick={() => connect({ connector })}>
+                Connect Smart Wallet
+              </button>
+            ))
         )}
       </div>
 
-      <div className="w-full max-w-4xl">
-        <h2 className="text-xl font-bold mb-4">Connect Wallet</h2>
-        {connectors
-          .filter((connector) => connector.name === 'Coinbase Wallet')
-          .map((connector) => (
-            <button
-              key={connector.uid}
-              onClick={() => connect({ connector })}
-              type="button"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md"
-            >
-              Sign in with Smart Wallet
-            </button>
-          ))}
-        <div className="mt-2">{status}</div>
-        <div className="text-red-500">{error?.message}</div>
-        
-        <h1 className="text-2xl font-bold my-6">User Checkout Demo</h1>
+      {/* Data Request Form */}
+      {account.status === 'connected' && (
+        <div style={{ marginTop: "20px" }}>
+          <h2>Checkout</h2>
 
-        <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800">
-          <div className="mb-4">
-            <label className="flex items-center gap-2 mb-2 cursor-pointer">
+          <div>
+            <label>
               <input
                 type="checkbox"
-                checked={isEmailEnabled}
-                onChange={(e) => setIsEmailEnabled(e.target.checked)}
+                checked={dataToRequest.email}
+                onChange={() => setDataToRequest(prev => ({ ...prev, email: !prev.email }))}
               />
-              Request Email (Required)
+              Email Address
             </label>
-            
-            <label className="flex items-center gap-2 cursor-pointer">
+          </div>
+
+          <div>
+            <label>
               <input
                 type="checkbox"
-                checked={isAddressEnabled}
-                onChange={(e) => setIsAddressEnabled(e.target.checked)}
+                checked={dataToRequest.address}
+                onChange={() => setDataToRequest(prev => ({ ...prev, address: !prev.address }))}
               />
-              Request Physical Address (Required)
+              Physical Address
             </label>
           </div>
 
           <button
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors shadow-sm disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center justify-center w-full cursor-pointer"
             onClick={handleSubmit}
-            disabled={isLoading || !provider || account.status !== 'connected'}
+            disabled={isLoading || !provider}
           >
-            {isLoading ? (
-              <>
-                <svg
-                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Processing...
-              </>
-            ) : (
-              "Request User Data"
-            )}
+            {isLoading ? "Processing..." : "Checkout"}
           </button>
         </div>
+      )}
 
-        {result && (
-          <div className={`p-4 rounded-md mt-4 ${result.success ? 'bg-green-700' : 'bg-red-700'}`}>
-            {result.success ? (
-              <div>
-                <h2 className="text-lg font-bold mb-2">Checkout Successful</h2>
-                {result.email && (
-                  <p className="mb-2"><strong>Email:</strong> {result.email}</p>
-                )}
-                {result.physicalAddress && (
-                  <p><strong>Address:</strong> {result.physicalAddress}</p>
-                )}
-              </div>
-            ) : (
-              <div>
-                <h2 className="text-lg font-bold mb-2">Error</h2>
-                <p>{result.error}</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Results Display */}
+      {result && (
+        <div style={{
+          marginTop: "20px",
+          padding: "15px",
+          backgroundColor: result.success ? "#d4edda" : "#f8d7da",
+          borderRadius: "5px"
+        }}>
+          {result.success ? (
+            <>
+              <h3>Data Received</h3>
+              {result.email && <p><strong>Email:</strong> {result.email}</p>}
+              {result.address && <p><strong>Address:</strong> {result.address}</p>}
+            </>
+          ) : (
+            <>
+              <h3>Error</h3>
+              <p>{result.error}</p>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
