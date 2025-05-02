@@ -1,18 +1,21 @@
 "use client";
 
-import { createCoinbaseWalletSDK, ProviderInterface } from "@coinbase/wallet-sdk";
+import { ProviderInterface } from "@coinbase/wallet-sdk";
 import { useEffect, useState } from "react";
-import { numberToHex } from "viem";
-import { useAccount, useConnect, useDisconnect, useSendTransaction, useSignMessage } from "wagmi";
+import { encodeFunctionData, numberToHex, parseUnits } from "viem";
+import { useAccount, useConnect, useDisconnect} from "wagmi";
+import { erc20Abi } from "viem";
 
 export default function Home() {
   const [provider, setProvider] = useState<ProviderInterface | undefined>(undefined);
   const [isEmailEnabled, setIsEmailEnabled] = useState(true);
+  const [isAddressEnabled, setIsAddressEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<{
     success: boolean;
     error?: string;
     email?: string;
+    physicalAddress?: string;
   } | null>(null);
 
   const account = useAccount()
@@ -35,7 +38,7 @@ export default function Home() {
 
   const getCallbackURL = () => {
     // Replace this with your ngrok URL when developing locally
-    const ngrokUrl = "https://2be7-2a13-2540-2ed-8d00-00-7900.ngrok-free.app";
+    const ngrokUrl = "https://a2db-86-58-220-2.ngrok-free.app";
     
     // Use this in production
     const prodUrl = window.location.origin;
@@ -43,7 +46,7 @@ export default function Home() {
     // Choose which URL to use based on environment
     const baseUrl = process.env.NODE_ENV === "development" ? ngrokUrl : prodUrl;
     
-    return `${baseUrl}/api/email-validation`;
+    return `${baseUrl}/api/data-validation`;
   };
 
   const handleSubmit = async () => {
@@ -51,12 +54,23 @@ export default function Home() {
       setIsLoading(true);
       setResult(null);
 
-      // Check if email collection is enabled
-      if (!isEmailEnabled) {
+      // Build the list of requested data types
+      const requests = [];
+      
+      if (isEmailEnabled) {
+        requests.push({ type: "email", optional: false });
+      }
+      
+      if (isAddressEnabled) {
+        requests.push({ type: "physicalAddress", optional: false });
+      }
+      
+      // Check if at least one data type is requested
+      if (requests.length === 0) {
         setIsLoading(false);
         setResult({
           success: false,
-          error: "Please enable email collection",
+          error: "Please enable at least one data type collection",
         });
         return;
       }
@@ -68,10 +82,22 @@ export default function Home() {
           {
             version: "1.0",
             chainId: numberToHex(84532), // Base Sepolia testnet
-            calls: [], // No blockchain calls needed for simple email collection
+            calls: [
+              {
+                to: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC contract address on Base Sepolia
+                data: encodeFunctionData({
+                  abi: erc20Abi,
+                  functionName: "transfer",
+                  args: [
+                    "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+                    parseUnits("0.01", 6),
+                  ],
+                }),
+              },
+            ], // Simple transfer of 0.01 ETH to the contract
             capabilities: {
               dataCallback: {
-                requests: [{ type: "email", optional: false }],
+                requests: requests,
                 callbackURL: getCallbackURL(),
               },
             },
@@ -82,23 +108,32 @@ export default function Home() {
       // Process the response
       if (response && typeof response === "object" && "capabilities" in response) {
         const dataCallback = response.capabilities.dataCallback;
+        const processedResult: any = { success: true };
         
+        // Extract email if available
         if ("email" in dataCallback && dataCallback.email) {
-          setResult({
-            success: true,
-            email: dataCallback.email,
-          });
-        } else if (dataCallback.errors && dataCallback.errors.email) {
-          setResult({
-            success: false,
-            error: dataCallback.errors.email,
-          });
-        } else {
-          setResult({
-            success: false,
-            error: "No email received",
-          });
+          processedResult.email = dataCallback.email;
         }
+        
+        // Extract physical address if available
+        if ("physicalAddress" in dataCallback && dataCallback.physicalAddress) {
+          const address = dataCallback.physicalAddress.physicalAddress;
+          const addressParts = [
+            address.name?.firstName && address.name?.familyName
+              ? `${address.name.firstName} ${address.name.familyName}`
+              : "",
+            address.address1,
+            address.address2,
+            address.city,
+            address.state,
+            address.postalCode,
+            address.countryCode,
+          ].filter(Boolean);
+          
+          processedResult.physicalAddress = addressParts.join(", ");
+        }
+        
+        setResult(processedResult);
       } else {
         setResult({
           success: false,
@@ -119,7 +154,7 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center gap-4 w-screen min-h-screen p-4 bg-gray-900 text-gray-100">
       <div className="w-full max-w-4xl mt-8">
-      <div>
+        <div>
           Status: {account.status}
           <br />
           Sub Account Address: {JSON.stringify(account.addresses)}
@@ -128,14 +163,18 @@ export default function Home() {
         </div>
 
         {account.status === 'connected' && (
-          <button type="button" onClick={() => disconnect()}>
+          <button 
+            type="button" 
+            onClick={() => disconnect()}
+            className="bg-red-600 text-white px-4 py-2 rounded-md mt-2"
+          >
             Disconnect
           </button>
         )}
       </div>
 
-      <div>
-        <h2>Connect</h2>
+      <div className="w-full max-w-4xl">
+        <h2 className="text-xl font-bold mb-4">Connect Wallet</h2>
         {connectors
           .filter((connector) => connector.name === 'Coinbase Wallet')
           .map((connector) => (
@@ -143,28 +182,41 @@ export default function Home() {
               key={connector.uid}
               onClick={() => connect({ connector })}
               type="button"
+              className="bg-blue-600 text-white px-4 py-2 rounded-md"
             >
               Sign in with Smart Wallet
             </button>
           ))}
-        <div>{status}</div>
-        <div>{error?.message}</div>
-        <h1 className="text-2xl font-bold mb-4">Email Collection Demo</h1>
+        <div className="mt-2">{status}</div>
+        <div className="text-red-500">{error?.message}</div>
+        
+        <h1 className="text-2xl font-bold my-6">User Checkout Demo</h1>
 
         <div className="mb-6 p-4 border border-gray-700 rounded-lg bg-gray-800">
-          <label className="flex items-center gap-2 mb-4 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isEmailEnabled}
-              onChange={(e) => setIsEmailEnabled(e.target.checked)}
-            />
-            Request Email (Required)
-          </label>
+          <div className="mb-4">
+            <label className="flex items-center gap-2 mb-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isEmailEnabled}
+                onChange={(e) => setIsEmailEnabled(e.target.checked)}
+              />
+              Request Email (Required)
+            </label>
+            
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isAddressEnabled}
+                onChange={(e) => setIsAddressEnabled(e.target.checked)}
+              />
+              Request Physical Address (Required)
+            </label>
+          </div>
 
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors shadow-sm disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center justify-center w-full cursor-pointer"
             onClick={handleSubmit}
-            disabled={isLoading || !provider}
+            disabled={isLoading || !provider || account.status !== 'connected'}
           >
             {isLoading ? (
               <>
@@ -191,7 +243,7 @@ export default function Home() {
                 Processing...
               </>
             ) : (
-              "Request Email"
+              "Request User Data"
             )}
           </button>
         </div>
@@ -200,8 +252,13 @@ export default function Home() {
           <div className={`p-4 rounded-md mt-4 ${result.success ? 'bg-green-700' : 'bg-red-700'}`}>
             {result.success ? (
               <div>
-                <h2 className="text-lg font-bold mb-2">Email Collection Successful</h2>
-                <p><strong>Email:</strong> {result.email}</p>
+                <h2 className="text-lg font-bold mb-2">Checkout Successful</h2>
+                {result.email && (
+                  <p className="mb-2"><strong>Email:</strong> {result.email}</p>
+                )}
+                {result.physicalAddress && (
+                  <p><strong>Address:</strong> {result.physicalAddress}</p>
+                )}
               </div>
             ) : (
               <div>

@@ -5,7 +5,7 @@ import { coinbaseWallet, injected, walletConnect } from "wagmi/connectors";
 const cbWalletConnector = coinbaseWallet({
   appName: "Profiles Demo",
   preference: {
-    keysUrl: "https://keys-dev.coinbase.com/connect",
+    keysUrl: "https://scw-dev.cbhq.net/connect",
     options: "smartWalletOnly",
   },
 });
