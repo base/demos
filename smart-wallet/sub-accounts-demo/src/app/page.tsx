@@ -1,19 +1,62 @@
 'use client'
-
+ 
 import { parseEther } from 'viem'
-import { useAccount, useConnect, useDisconnect, useSendTransaction, useSignMessage } from 'wagmi'
+import { useAccount, useConnect, useWriteContract, useDisconnect, useSendTransaction, useSignMessage } from 'wagmi'
+import { WETH_ADDRESS, WETH_ABI } from '../weth'
+import { useState } from 'react'
 
 function App() {
   const account = useAccount()
   const { connectors, connect, status, error } = useConnect()
   const { disconnect } = useDisconnect()
   const { sendTransactionAsync, data } = useSendTransaction()
-  const { signMessage, data: signData } = useSignMessage()
+
+  // weth data and functions
+  const [wrapAmount, setWrapAmount] = useState<string>('0')
+  const [txHash, setTxHash] = useState<string>('')
+  const { writeContractAsync: wrap, isPending: isWrapping, 
+    isSuccess: isWrapped, isError: isErrorWrapping, error: errorWrapping } = useWriteContract()
+  const { writeContractAsync: unwrap, isPending: isUnwrapping, isSuccess: isUnwrapped, 
+    isError: isErrorUnwrapping, error: errorUnwrapping } = useWriteContract()
+
+  const handleWrap = async () => {
+    if (!wrapAmount || account.status !== 'connected') return
+    
+    try {
+      const tx = await wrap({
+        address: WETH_ADDRESS as `0x${string}`,
+        abi: WETH_ABI,
+        functionName: 'deposit',
+        value: parseEther(wrapAmount)
+      })
+      setTxHash(tx)
+    } catch (error) {
+      console.error('Error wrapping ETH:', error)
+    }
+  }
+
+  const handleUnwrap = async () => {
+    if (!wrapAmount || account.status !== 'connected') return
+    
+    try {
+      const tx = await unwrap({
+        address: WETH_ADDRESS as `0x${string}`,
+        abi: WETH_ABI,
+        functionName: 'withdraw',
+        args: [parseEther(wrapAmount)]
+      })
+      setTxHash(tx)
+    } catch (error) {
+      console.error('Error unwrapping WETH:', error)
+    }
+  }
+  // end weth data and functions
+
   return (
     <>
       <div>
         <h2>Account</h2>
-
+ 
         <div>
           Status: {account.status}
           <br />
@@ -21,14 +64,14 @@ function App() {
           <br />
           ChainId: {account.chainId}
         </div>
-
+ 
         {account.status === 'connected' && (
           <button type="button" onClick={() => disconnect()}>
             Disconnect
           </button>
         )}
       </div>
-
+ 
       <div>
         <h2>Connect</h2>
         {connectors
@@ -53,18 +96,35 @@ function App() {
         </button>
         <div>{data && "Transaction sent successfully! 🎉"}</div>
         <div>{data}</div>
+      </div>
 
-        <div>Sign Message</div>
+      <div>
+        <h2>Wrap ETH to WETH and Unwrap WETH to ETH</h2>
+        <input type="number" value={wrapAmount} onChange={(e) => setWrapAmount(e.target.value)} />
         <button 
           type="button" 
-          onClick={() => signMessage({ message: 'Hello World' })}
+          onClick={handleWrap}
+          disabled={!wrapAmount || account.status !== 'connected' || isWrapping}
         >
-          Sign Message
+          {isWrapping ? 'Wrapping...' : 'Wrap'}
         </button>
-        <div>{signData}</div>
+        <button 
+          type="button" 
+          onClick={handleUnwrap}
+          disabled={!wrapAmount || account.status !== 'connected' || isUnwrapping}
+        >
+          {isUnwrapping ? 'Unwrapping...' : 'Unwrap'}
+        </button>
+        <div>{txHash && "Tx Hash: " + txHash}</div>
+        <div>{isWrapping && "Wrapping..."}</div>
+        <div>{isWrapped && "Wrapped! 🎉"}</div>
+        <div>{isErrorWrapping && "Error wrapping: " + errorWrapping?.message}</div>
+        <div>{isUnwrapping && "Unwrapping..."}</div>
+        <div>{isUnwrapped && "Unwrapped! 🎉"}</div>
+        <div>{isErrorUnwrapping && "Error unwrapping: " + errorUnwrapping?.message}</div>
       </div>
     </>
   )
 }
-
+ 
 export default App
