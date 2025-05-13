@@ -1,5 +1,5 @@
 'use client'
- 
+
 import { parseEther } from 'viem'
 import { useAccount, useConnect, useWriteContract, useDisconnect, useSendTransaction, useSignMessage } from 'wagmi'
 import { WETH_ADDRESS, WETH_ABI } from '../weth'
@@ -10,6 +10,7 @@ function App() {
   const { connectors, connect, status, error } = useConnect()
   const { disconnect } = useDisconnect()
   const { sendTransactionAsync, data } = useSendTransaction()
+  const { signMessage, data: signData } = useSignMessage()
 
   // weth data and functions
   const [wrapAmount, setWrapAmount] = useState<string>('0')
@@ -56,7 +57,7 @@ function App() {
     <>
       <div>
         <h2>Account</h2>
- 
+
         <div>
           Status: {account.status}
           <br />
@@ -64,14 +65,14 @@ function App() {
           <br />
           ChainId: {account.chainId}
         </div>
- 
+
         {account.status === 'connected' && (
           <button type="button" onClick={() => disconnect()}>
             Disconnect
           </button>
         )}
       </div>
- 
+
       <div>
         <h2>Connect</h2>
         {connectors
@@ -96,6 +97,15 @@ function App() {
         </button>
         <div>{data && "Transaction sent successfully! 🎉"}</div>
         <div>{data}</div>
+
+        <div>Sign Message</div>
+        <button 
+          type="button" 
+          onClick={() => signMessage({ message: 'Hello World' })}
+        >
+          Sign Message
+        </button>
+        <div>{signData}</div>
       </div>
 
       <div>
@@ -115,7 +125,7 @@ function App() {
         >
           {isUnwrapping ? 'Unwrapping...' : 'Unwrap'}
         </button>
-        <div>{txHash && "Tx Hash: " + txHash}</div>
+        <div>{txHash && "Wrap tx Hash: " + txHash}</div>
         <div>{isWrapping && "Wrapping..."}</div>
         <div>{isWrapped && "Wrapped! 🎉"}</div>
         <div>{isErrorWrapping && "Error wrapping: " + errorWrapping?.message}</div>
@@ -126,5 +136,5 @@ function App() {
     </>
   )
 }
- 
+
 export default App
