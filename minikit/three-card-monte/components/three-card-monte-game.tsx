@@ -6,11 +6,11 @@ import { Card } from "@/components/card"
 import { GameControls } from "@/components/game-controls"
 import { Leaderboard } from "@/components/leaderboard"
 import { UsernameModal } from "@/components/username-modal"
-import { TransactionComponent } from "@/components/TransactionComponent"
 import { shuffle } from "@/lib/shuffle"
 import confetti from "canvas-confetti"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useMiniKit } from "@coinbase/onchainkit/minikit"
+import { ClaimRewardButton } from "@/components/ClaimReward"
 
 export const ThreeCardMonteGame = () => {
   const { context } = useMiniKit()
@@ -259,11 +259,11 @@ export const ThreeCardMonteGame = () => {
         isShuffling={isShuffling}
       />
 
-      {/* Only render the TransactionComponent when user wins */}
+      {/* Only render the ClaimRewardButton when user wins */}
       {userWon && gameEnded && (
         <div className="mt-6 p-4 bg-gradient-to-r from-purple-900/60 to-indigo-900/60 rounded-lg backdrop-blur-sm border border-indigo-500/50">
           <h3 className="text-lg text-yellow-400 text-center mb-3">🎁 Claim Your Win Reward!</h3>
-          <TransactionComponent />
+          <ClaimRewardButton hasWon={true} />
         </div>
       )}
 

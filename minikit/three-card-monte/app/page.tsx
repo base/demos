@@ -11,6 +11,25 @@ import { Button } from "@/components/DemoComponents";
 import { Icon } from "@/components/DemoComponents";
 import { ThreeCardMonteGame } from "@/components/three-card-monte-game";
 
+import {
+  ConnectWallet,
+  Wallet,
+  WalletDropdown,
+  WalletDropdownBasename, 
+  WalletDropdownFundLink, 
+  WalletDropdownLink, 
+  WalletDropdownDisconnect,
+} from '@coinbase/onchainkit/wallet';
+import {
+  Address,
+  Avatar,
+  Name,
+  Identity,
+  EthBalance, 
+} from '@coinbase/onchainkit/identity';
+ 
+// omitted for brevity
+
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const [frameAdded, setFrameAdded] = useState(false);
@@ -70,6 +89,33 @@ export default function App() {
 
         <main className="flex-1">
           <ThreeCardMonteGame />
+ 
+        <Wallet>
+          <ConnectWallet>
+            <Avatar className="h-6 w-6" />
+            <Name />
+          </ConnectWallet>
+          <WalletDropdown>
+            <Identity
+              className="px-4 pt-3 pb-2"
+              hasCopyAddressOnClick
+            >
+              <Avatar />
+              <Name />
+              <Address />
+              <EthBalance />
+            </Identity>
+            <WalletDropdownBasename />
+            <WalletDropdownLink
+              icon="wallet"
+              href="https://keys.coinbase.com"
+            >
+              Wallet
+            </WalletDropdownLink>
+            <WalletDropdownFundLink />
+            <WalletDropdownDisconnect />
+          </WalletDropdown>
+        </Wallet>
         </main>
 
         <footer className="mt-2 pt-4 flex justify-center">
