@@ -13,7 +13,7 @@ interface CardProps {
   height?: number
 }
 
-export const Card = ({ id, isFlipped, image, onClick, isTarget, width = 200, height = 280 }: CardProps) => {
+export const Card = ({ id, isFlipped, onClick, isTarget, width = 200, height = 280 }: CardProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const cardFrontRef = useRef<HTMLCanvasElement>(null)
 
@@ -29,30 +29,46 @@ export const Card = ({ id, isFlipped, image, onClick, isTarget, width = 200, hei
     canvas.width = width
     canvas.height = height
 
-    // Draw card back
-    ctx.fillStyle = "#2563eb" // Blue background
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-    // Add some texture/gradient
+    // Draw card back with gradient
     const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
-    gradient.addColorStop(0, "rgba(59, 130, 246, 0.8)")
-    gradient.addColorStop(1, "rgba(37, 99, 235, 0.9)")
+    gradient.addColorStop(0, "#4338ca")  // indigo-700
+    gradient.addColorStop(1, "#3730a3")  // indigo-800
     ctx.fillStyle = gradient
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // Draw border
-    ctx.strokeStyle = "#fcd34d"
-    ctx.lineWidth = width < 160 ? 3 : 5
-    ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20)
+    // Add subtle pattern
+    ctx.fillStyle = "rgba(255, 255, 255, 0.03)"
+    const patternSize = width < 160 ? 15 : 20
+    
+    for (let x = 0; x < canvas.width; x += patternSize) {
+      for (let y = 0; y < canvas.height; y += patternSize) {
+        if ((x + y) % (patternSize * 2) === 0) {
+          ctx.fillRect(x, y, patternSize, patternSize)
+        }
+      }
+    }
 
-    // Draw question marks
+    // Draw elegant border
+    ctx.strokeStyle = "#fcd34d"
+    ctx.lineWidth = width < 160 ? 4 : 6
+    ctx.strokeRect(width * 0.05, height * 0.05, width * 0.9, height * 0.9)
+    
+    // Add inner border for depth
+    ctx.strokeStyle = "rgba(252, 211, 77, 0.3)"
+    ctx.lineWidth = width < 160 ? 2 : 3
+    ctx.strokeRect(width * 0.1, height * 0.1, width * 0.8, height * 0.8)
+
+    // Draw question marks with glow
     ctx.fillStyle = "#fcd34d"
+    ctx.shadowColor = "#fcd34d"
+    ctx.shadowBlur = width < 160 ? 8 : 12
+    
     const fontSize = width < 160 ? 36 : 48
     ctx.font = `bold ${fontSize}px Arial`
     ctx.textAlign = "center"
     ctx.textBaseline = "middle"
 
-    // Draw multiple question marks - adjust for smaller screens
+    // Draw multiple question marks in a more elegant pattern
     const positions =
       width < 160
         ? [
@@ -70,6 +86,9 @@ export const Card = ({ id, isFlipped, image, onClick, isTarget, width = 200, hei
     positions.forEach((pos) => {
       ctx.fillText("?", pos.x, pos.y)
     })
+    
+    // Reset shadow for performance
+    ctx.shadowBlur = 0
   }, [width, height])
 
   // Update the card front rendering to make the target card more distinctive
@@ -84,14 +103,40 @@ export const Card = ({ id, isFlipped, image, onClick, isTarget, width = 200, hei
     canvas.width = width
     canvas.height = height
 
-    // Draw card background
-    ctx.fillStyle = "#f5f5f5"
+    // Draw elegant card background with gradient
+    const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
+    bgGradient.addColorStop(0, isTarget ? "#fefce8" : "#f8fafc")  // yellow-50 for target, slate-50 for others
+    bgGradient.addColorStop(1, isTarget ? "#fef9c3" : "#f1f5f9")  // yellow-100 for target, slate-100 for others
+    ctx.fillStyle = bgGradient
     ctx.fillRect(0, 0, canvas.width, canvas.height)
+    
+    // Add subtle texture
+    ctx.fillStyle = isTarget ? "rgba(250, 204, 21, 0.05)" : "rgba(100, 116, 139, 0.05)"
+    const patternSize = width < 160 ? 8 : 10
+    
+    for (let x = 0; x < canvas.width; x += patternSize) {
+      for (let y = 0; y < canvas.height; y += patternSize) {
+        if ((x + y) % (patternSize * 2) === 0) {
+          ctx.fillRect(x, y, patternSize, patternSize)
+        }
+      }
+    }
 
-    // Draw border - make target card border more distinctive
-    ctx.strokeStyle = isTarget ? "#ff9500" : "#fcd34d"
+    // Draw border with gradient
+    const borderGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+    
+    if (isTarget) {
+      borderGradient.addColorStop(0, "#f59e0b")  // amber-500
+      borderGradient.addColorStop(0.5, "#fbbf24")  // amber-400
+      borderGradient.addColorStop(1, "#f59e0b")  // amber-500
+    } else {
+      borderGradient.addColorStop(0, "#fcd34d")  // amber-300
+      borderGradient.addColorStop(1, "#fbbf24")  // amber-400
+    }
+    
+    ctx.strokeStyle = borderGradient
     ctx.lineWidth = isTarget ? (width < 160 ? 5 : 8) : width < 160 ? 3 : 5
-    ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20)
+    ctx.strokeRect(width * 0.05, height * 0.05, width * 0.9, height * 0.9)
 
     // Draw placeholder image or target indicator
     if (isTarget) {
@@ -107,20 +152,38 @@ export const Card = ({ id, isFlipped, image, onClick, isTarget, width = 200, hei
         const offsetX = canvas.width / 2 - imageSize / 2
         const offsetY = canvas.height / 2 - imageSize / 2
 
+        // Add drop shadow to image
+        ctx.shadowColor = "rgba(0, 0, 0, 0.3)"
+        ctx.shadowBlur = 10
+        ctx.shadowOffsetY = 3
+        
         ctx.drawImage(img, offsetX, offsetY, imageSize, imageSize)
+        
+        // Reset shadow
+        ctx.shadowBlur = 0
+        ctx.shadowOffsetY = 0
 
-        // Add a title - adjust font size for smaller screens
-        ctx.fillStyle = "#000"
-        const fontSize = width < 160 ? 14 : 18
+        // Add card title with gradient text
+        const titleGradient = ctx.createLinearGradient(
+          canvas.width / 2 - 50, 
+          20, 
+          canvas.width / 2 + 50, 
+          40
+        )
+        titleGradient.addColorStop(0, "#b45309")  // amber-800
+        titleGradient.addColorStop(1, "#92400e")  // amber-900
+        
+        ctx.fillStyle = titleGradient
+        const fontSize = width < 160 ? 16 : 18
         ctx.font = `bold ${fontSize}px Arial`
         ctx.textAlign = "center"
         ctx.fillText("TARGET CARD", canvas.width / 2, 30)
 
         // Add a glow effect for the target card
-        ctx.shadowColor = "#ff9500"
-        ctx.shadowBlur = width < 160 ? 10 : 15
-        ctx.strokeStyle = "#ff9500"
-        ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40)
+        ctx.shadowColor = "#f59e0b"
+        ctx.shadowBlur = width < 160 ? 15 : 20
+        ctx.strokeStyle = "#f59e0b"
+        ctx.strokeRect(width * 0.1, height * 0.1, width * 0.8, height * 0.8)
         ctx.shadowBlur = 0
       }
     } else {
@@ -136,11 +199,29 @@ export const Card = ({ id, isFlipped, image, onClick, isTarget, width = 200, hei
         const offsetX = canvas.width / 2 - imageSize / 2
         const offsetY = canvas.height / 2 - imageSize / 2
 
+        // Add drop shadow to image
+        ctx.shadowColor = "rgba(0, 0, 0, 0.2)"
+        ctx.shadowBlur = 8
+        ctx.shadowOffsetY = 2
+        
         ctx.drawImage(img, offsetX, offsetY, imageSize, imageSize)
+        
+        // Reset shadow
+        ctx.shadowBlur = 0
+        ctx.shadowOffsetY = 0
 
-        // Add a title - adjust font size for smaller screens
-        ctx.fillStyle = "#000"
-        const fontSize = width < 160 ? 12 : 16
+        // Add card title with gradient
+        const titleGradient = ctx.createLinearGradient(
+          canvas.width / 2 - 30, 
+          20, 
+          canvas.width / 2 + 30, 
+          40
+        )
+        titleGradient.addColorStop(0, "#475569")  // slate-600
+        titleGradient.addColorStop(1, "#334155")  // slate-700
+        
+        ctx.fillStyle = titleGradient
+        const fontSize = width < 160 ? 14 : 16
         ctx.font = `bold ${fontSize}px Arial`
         ctx.textAlign = "center"
         ctx.fillText(`Card ${id}`, canvas.width / 2, 30)
@@ -149,9 +230,13 @@ export const Card = ({ id, isFlipped, image, onClick, isTarget, width = 200, hei
   }, [id, isTarget, width, height])
 
   return (
-    <div className="relative cursor-pointer" onClick={onClick} style={{ width: `${width}px`, height: `${height}px` }}>
+    <div 
+      className="relative cursor-pointer hover:scale-[1.02] transition-transform" 
+      onClick={onClick} 
+      style={{ width: `${width}px`, height: `${height}px` }}
+    >
       <motion.div
-        className="absolute w-full h-full backface-hidden"
+        className="absolute w-full h-full backface-hidden rounded-xl shadow-xl"
         initial={false}
         animate={{
           rotateY: isFlipped ? 180 : 0,
@@ -159,11 +244,11 @@ export const Card = ({ id, isFlipped, image, onClick, isTarget, width = 200, hei
         }}
         transition={{ duration: 0.6 }}
       >
-        <canvas ref={canvasRef} className="w-full h-full rounded-lg shadow-lg" />
+        <canvas ref={canvasRef} className="w-full h-full rounded-xl" />
       </motion.div>
 
       <motion.div
-        className="absolute w-full h-full backface-hidden"
+        className="absolute w-full h-full backface-hidden rounded-xl shadow-xl"
         initial={false}
         animate={{
           rotateY: isFlipped ? 0 : -180,
@@ -171,7 +256,7 @@ export const Card = ({ id, isFlipped, image, onClick, isTarget, width = 200, hei
         }}
         transition={{ duration: 0.6 }}
       >
-        <canvas ref={cardFrontRef} className="w-full h-full rounded-lg shadow-lg" />
+        <canvas ref={cardFrontRef} className="w-full h-full rounded-xl" />
       </motion.div>
     </div>
   )

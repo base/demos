@@ -156,42 +156,45 @@ export function ClaimRewardButton({ onSuccess, hasWon = false }: ClaimRewardButt
   return (
     <div className="w-full">
       {error && (
-        <div className="mb-4">
-          <p className="text-red-500">{error}</p>
+        <div className="mb-4 p-3 bg-red-900/40 border border-red-500/50 rounded-lg text-center">
+          <p className="text-red-400 text-sm font-medium">{error}</p>
         </div>
       )}
       {success && (
-        <div className="mb-4">
-          <p className="text-green-500">Reward claimed successfully! 🎉</p>
+        <div className="mb-4 p-3 bg-green-900/40 border border-green-500/50 rounded-lg text-center">
+          <p className="text-green-400 text-sm font-medium">Reward claimed successfully! 🎉</p>
         </div>
       )}
       {winRecorded && !success && (
-        <div className="mb-4">
-          <p className="text-blue-400">Win recorded! Now claim your reward.</p>
+        <div className="mb-4 p-3 bg-blue-900/40 border border-blue-500/50 rounded-lg text-center">
+          <p className="text-blue-300 text-sm font-medium">Win recorded! Now claim your reward.</p>
         </div>
       )}
-      {!account.isConnected ? (
-        <ConnectWallet onConnect={handleConnectSuccess}>
-          <button className="bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white py-2 px-4 rounded-md text-sm font-medium">
-            Connect Wallet
+      
+      <div className="mt-2">
+        {!account.isConnected ? (
+          <ConnectWallet onConnect={handleConnectSuccess}>
+            <button className="w-full py-3 text-base font-medium text-white rounded-lg shadow-md border border-indigo-500/30 bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 transition-all duration-200">
+              Connect Wallet
+            </button>
+          </ConnectWallet>
+        ) : (
+          <button
+            onClick={handleClaim}
+            disabled={isLoading}
+            className="w-full py-3 text-base font-medium text-white rounded-lg shadow-md border border-green-500/30 bg-gradient-to-r from-green-600 to-green-800 hover:from-green-700 hover:to-green-900 disabled:from-gray-600 disabled:to-gray-800 disabled:border-gray-500/30 disabled:cursor-not-allowed transition-all duration-200"
+          >
+            {isLoading ? (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2"></div>
+                Claiming Reward...
+              </div>
+            ) : (
+              "Claim Reward"
+            )}
           </button>
-        </ConnectWallet>
-      ) : (
-        <button
-          onClick={handleClaim}
-          disabled={isLoading}
-          className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-              Claiming Reward...
-            </div>
-          ) : (
-            "Claim Reward"
-          )}
-        </button>
-      )}
+        )}
+      </div>
     </div>
   );
 }

@@ -8,21 +8,8 @@ type LeaderboardEntry = {
   name: string;
   score: number;
   avatar: string;
+  timestamp?: number;
 };
-
-// Dummy leaderboard data
-const dummyLeaderboardData: LeaderboardEntry[] = [
-  { id: 1, name: "CardMaster", score: 12, avatar: "👑" },
-  { id: 2, name: "LuckyGuesser", score: 10, avatar: "🍀" },
-  { id: 3, name: "SharpEye", score: 9, avatar: "👁️" },
-  { id: 4, name: "CardWizard", score: 8, avatar: "🧙" },
-  { id: 5, name: "MonteKing", score: 7, avatar: "🃏" },
-  { id: 6, name: "QuickHands", score: 6, avatar: "👐" },
-  { id: 7, name: "Observant", score: 5, avatar: "🔍" },
-  { id: 8, name: "Focused", score: 4, avatar: "🎯" },
-  { id: 9, name: "Newbie", score: 3, avatar: "🐣" },
-  { id: 10, name: "Beginner", score: 2, avatar: "🌱" },
-];
 
 // List of avatars to assign randomly
 const avatarList = ["👑", "🍀", "👁️", "🧙", "🃏", "👐", "🔍", "🎯", "🐣", "🌱", "🦊", "🐼", "🦁", "🐯", "🦄"];
@@ -43,15 +30,28 @@ export const Leaderboard = ({ isOpen, onClose, userScore, userName }: Leaderboar
     return avatarList[Math.floor(Math.random() * avatarList.length)];
   };
 
+  // Load leaderboard data from localStorage
   useEffect(() => {
-    // In a real app, you would fetch the data from an API
-    // For now, we're using the dummy data
-    setLeaderboardData([...dummyLeaderboardData]);
-    setUserEntryAdded(false);
-  }, []);
+    const loadLeaderboard = () => {
+      try {
+        const storedData = localStorage.getItem('threeCardMonteLeaderboard');
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          if (Array.isArray(parsedData)) {
+            setLeaderboardData(parsedData);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading leaderboard data:', error);
+      }
+    };
 
+    loadLeaderboard();
+    setUserEntryAdded(false);
+  }, [isOpen]); // Reload data when modal opens
+
+  // Add user score to leaderboard if needed
   useEffect(() => {
-    // Check if we need to add a user entry
     if (isOpen && userScore !== undefined && userName && !userEntryAdded && userScore > 0) {
       // Create a new entry for the user
       const newUserEntry: LeaderboardEntry = {
@@ -59,14 +59,46 @@ export const Leaderboard = ({ isOpen, onClose, userScore, userName }: Leaderboar
         name: userName,
         score: userScore,
         avatar: getRandomAvatar(),
+        timestamp: Date.now(),
       };
 
-      // Add the new entry and sort the leaderboard
-      const updatedLeaderboard = [...leaderboardData, newUserEntry]
+      // Check if user already exists in the leaderboard
+      const existingUserEntryIndex = leaderboardData.findIndex(entry => entry.name === userName);
+      let updatedLeaderboard: LeaderboardEntry[];
+
+      if (existingUserEntryIndex !== -1) {
+        // User exists - update only if new score is higher
+        if (userScore > leaderboardData[existingUserEntryIndex].score) {
+          const updatedEntries = [...leaderboardData];
+          updatedEntries[existingUserEntryIndex] = {
+            ...updatedEntries[existingUserEntryIndex],
+            score: userScore,
+            timestamp: Date.now()
+          };
+          updatedLeaderboard = updatedEntries;
+        } else {
+          // No need to update
+          setUserEntryAdded(true);
+          return;
+        }
+      } else {
+        // Add new user entry
+        updatedLeaderboard = [...leaderboardData, newUserEntry];
+      }
+
+      // Sort and limit to top 10
+      const sortedLeaderboard = updatedLeaderboard
         .sort((a, b) => b.score - a.score) // Sort by score (highest first)
         .slice(0, 10); // Keep only top 10
 
-      setLeaderboardData(updatedLeaderboard);
+      // Save to state and localStorage
+      setLeaderboardData(sortedLeaderboard);
+      try {
+        localStorage.setItem('threeCardMonteLeaderboard', JSON.stringify(sortedLeaderboard));
+      } catch (error) {
+        console.error('Error saving leaderboard data:', error);
+      }
+      
       setUserEntryAdded(true);
     }
   }, [isOpen, userScore, userName, leaderboardData, userEntryAdded]);
@@ -80,28 +112,30 @@ export const Leaderboard = ({ isOpen, onClose, userScore, userName }: Leaderboar
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
         >
           <motion.div
-            className="w-full max-w-md bg-gradient-to-b from-gray-900 to-gray-800 rounded-lg overflow-hidden shadow-xl"
+            className="w-full max-w-md bg-gradient-to-b from-indigo-950 to-indigo-900 rounded-xl overflow-hidden shadow-2xl border border-indigo-500/30"
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-yellow-300">🏆 Leaderboard</h2>
+            <div className="p-5 border-b border-indigo-700/50 flex justify-between items-center bg-gradient-to-r from-indigo-900 to-purple-900">
+              <h2 className="text-xl font-bold text-yellow-300 flex items-center gap-2">
+                <span className="text-2xl">🏆</span> Leaderboard
+              </h2>
               <button
                 onClick={onClose}
-                className="p-1 rounded-full hover:bg-gray-700 transition-colors"
+                className="p-1.5 rounded-full hover:bg-indigo-700/50 transition-colors"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 text-gray-400 hover:text-white"
+                  className="h-5 w-5 text-gray-300 hover:text-white"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -116,11 +150,11 @@ export const Leaderboard = ({ isOpen, onClose, userScore, userName }: Leaderboar
               </button>
             </div>
 
-            <div className="p-4">
+            <div className="p-5">
               {userScore !== undefined && userName && (
-                <div className="mb-4 p-3 bg-blue-900/40 rounded-lg border border-blue-700/50">
+                <div className="mb-5 p-4 bg-gradient-to-r from-blue-900/40 to-indigo-900/40 rounded-lg border border-blue-500/30 shadow-inner">
                   <p className="text-center text-white">
-                    {userName}&apos;s score: <span className="font-bold text-yellow-300">{userScore}</span>
+                    {userName}&apos;s score: <span className="font-bold text-yellow-300 text-lg ml-1">{userScore}</span>
                     {userPosition >= 0 && (
                       <span className="ml-2 text-sm text-blue-300">
                         (Rank: {userPosition + 1})
@@ -130,39 +164,48 @@ export const Leaderboard = ({ isOpen, onClose, userScore, userName }: Leaderboar
                 </div>
               )}
 
-              <div className="space-y-2">
-                {leaderboardData.map((entry, index) => (
-                  <motion.div
-                    key={entry.id}
-                    className={`flex items-center p-3 rounded-lg ${
-                      entry.name === userName ? "bg-blue-900/30 border border-blue-700/50" :
-                      index < 3 ? "bg-gradient-to-r from-gray-800 to-gray-700" : "bg-gray-800/50"
-                    }`}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <div className="flex-shrink-0 w-8 text-center font-bold">
-                      {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `#${index + 1}`}
-                    </div>
-                    
-                    <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-lg mr-2">
-                      {entry.avatar}
-                    </div>
-                    
-                    <div className="flex-grow">
-                      <p className="font-medium text-white">
-                        {entry.name}
-                        {entry.name === userName && <span className="ml-2 text-xs text-blue-300">(You)</span>}
-                      </p>
-                    </div>
-                    
-                    <div className="flex-shrink-0 font-bold text-yellow-300">
-                      {entry.score}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+              {leaderboardData.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <p>No scores yet. Be the first to make it to the leaderboard!</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {leaderboardData.map((entry, index) => (
+                    <motion.div
+                      key={entry.id}
+                      className={`flex items-center p-3.5 rounded-lg ${
+                        entry.name === userName ? "bg-gradient-to-r from-blue-900/50 to-blue-800/30 border border-blue-500/30" :
+                        index < 3 ? `bg-gradient-to-r ${index === 0 ? "from-amber-900/30 to-yellow-900/20" : 
+                                     index === 1 ? "from-slate-700/50 to-slate-800/30" : 
+                                     "from-amber-800/20 to-amber-900/10"} border border-yellow-700/20` : 
+                        "bg-indigo-950/50 border border-indigo-800/30"
+                      }`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <div className="flex-shrink-0 w-8 text-center font-bold text-lg">
+                        {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `${index + 1}`}
+                      </div>
+                      
+                      <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-xl mr-2">
+                        {entry.avatar}
+                      </div>
+                      
+                      <div className="flex-grow">
+                        <p className="font-medium text-white">
+                          {entry.name}
+                          {entry.name === userName && <span className="ml-2 text-xs text-blue-300">(You)</span>}
+                        </p>
+                      </div>
+                      
+                      <div className="flex-shrink-0 font-bold text-yellow-300 text-lg">
+                        {entry.score}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         </motion.div>

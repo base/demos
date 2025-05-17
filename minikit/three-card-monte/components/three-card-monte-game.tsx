@@ -11,6 +11,43 @@ import confetti from "canvas-confetti"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useMiniKit } from "@coinbase/onchainkit/minikit"
 import { ClaimRewardButton } from "@/components/ClaimReward"
+import {
+  ConnectWallet,
+  Wallet,
+  WalletDropdown,
+  WalletDropdownDisconnect,
+} from "@coinbase/onchainkit/wallet"
+import {
+  Address,
+  Avatar,
+  Name,
+  Identity,
+} from "@coinbase/onchainkit/identity"
+import { color } from "@coinbase/onchainkit/theme"
+
+// Wallet component
+function WalletComponents() {
+  return (
+    <div className="w-full flex justify-center mb-5">
+      <div className="bg-gradient-to-r from-indigo-900/70 to-purple-900/70 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg border border-indigo-500/30">
+        <Wallet>
+          <ConnectWallet className="flex items-center gap-2 text-white">
+            <Avatar className="h-6 w-6 border-2 border-indigo-400/50 rounded-full" />
+            <Name className="font-medium" />
+          </ConnectWallet>
+          <WalletDropdown className="bg-indigo-950 border border-indigo-400/30 shadow-xl rounded-xl mt-2">
+            <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+              <Avatar className="h-10 w-10 mb-1 border-2 border-indigo-400/50 rounded-full" />
+              <Name className="font-semibold text-white" />
+              <Address className={color.foregroundMuted} />
+            </Identity>
+            <WalletDropdownDisconnect className="px-4 py-3 hover:bg-indigo-800/30 text-indigo-200 transition-colors duration-200" />
+          </WalletDropdown>
+        </Wallet>
+      </div>
+    </div>
+  )
+}
 
 export const ThreeCardMonteGame = () => {
   const { context } = useMiniKit()
@@ -145,10 +182,7 @@ export const ThreeCardMonteGame = () => {
       // Trigger confetti animation when the user wins
       triggerConfetti()
       
-      // Show the leaderboard after a win
-      setTimeout(() => {
-        setIsLeaderboardOpen(true)
-      }, 1500)
+      // Remove automatic leaderboard popup
     } else {
       setMessage("❌ Wrong card! The target was elsewhere.")
       setUserWon(false)
@@ -194,24 +228,41 @@ export const ThreeCardMonteGame = () => {
   }
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="mb-4 sm:mb-6 text-center px-2">
-        <h2 className="text-lg sm:text-xl text-white mb-2">{message}</h2>
-        <div className="flex items-center justify-center gap-4">
-          <p className="text-yellow-300">Score: {score}</p>
-          <button
-            onClick={openLeaderboard}
-            className="px-3 py-1 text-sm bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white rounded-full transition-colors shadow-md flex items-center gap-1"
-          >
-            <span>🏆</span> Leaderboard
-          </button>
-        </div>
-        {username && (
-          <p className="text-gray-300 text-sm mt-2">
-            Playing as: <span className="font-medium text-blue-300">{username}</span>
-          </p>
-        )}
+    <div className="flex flex-col items-center relative">
+      {/* Fixed leaderboard button in top right corner */}
+      <div className="fixed top-4 right-4 z-10">
+        <button
+          onClick={openLeaderboard}
+          className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white rounded-lg transition-colors shadow-md flex items-center gap-2"
+        >
+          <span className="text-xl">🏆</span> Leaderboard
+        </button>
       </div>
+    
+      <div className="mb-8 text-center px-4 w-full max-w-2xl mx-auto">
+        {/* Game message */}
+        <div className="bg-gradient-to-r from-indigo-900/40 to-purple-900/40 backdrop-blur-sm rounded-xl px-6 py-4 mb-6 border border-indigo-500/20 shadow-md">
+          <h2 className="text-xl sm:text-2xl font-semibold text-white mb-0 bg-gradient-to-r from-indigo-300 to-purple-300 bg-clip-text text-transparent">{message}</h2>
+        </div>
+        
+        {/* Score and player info */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-2">
+          <div className="bg-gradient-to-r from-yellow-600/30 to-yellow-800/30 backdrop-blur-sm px-6 py-3 rounded-lg border border-yellow-500/30 shadow-md min-w-[140px]">
+            <p className="text-yellow-300 font-bold text-lg m-0">Score: {score}</p>
+          </div>
+          
+          {username && (
+            <div className="bg-indigo-900/30 px-6 py-3 rounded-lg backdrop-blur-sm border border-indigo-500/20 shadow-md min-w-[140px]">
+              <p className="text-gray-300 text-sm m-0">
+                Playing as: <span className="font-medium text-blue-300">{username}</span>
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Wallet Component */}
+      <WalletComponents />
 
       <div className={`relative w-full ${isMobile ? "h-[500px]" : "h-[300px]"} mb-6 sm:mb-8`}>
         <div className={`flex ${isMobile ? "flex-col" : "flex-row"} justify-center items-center h-full gap-4 sm:gap-6`}>
@@ -261,8 +312,8 @@ export const ThreeCardMonteGame = () => {
 
       {/* Only render the ClaimRewardButton when user wins */}
       {userWon && gameEnded && (
-        <div className="mt-6 p-4 bg-gradient-to-r from-purple-900/60 to-indigo-900/60 rounded-lg backdrop-blur-sm border border-indigo-500/50">
-          <h3 className="text-lg text-yellow-400 text-center mb-3">🎁 Claim Your Win Reward!</h3>
+        <div className="mt-8 p-5 bg-gradient-to-r from-purple-900/70 to-indigo-900/70 rounded-xl backdrop-blur-sm border border-indigo-500/50 shadow-lg max-w-md w-full mx-auto">
+          <h3 className="text-xl text-yellow-400 text-center mb-4 font-medium">🎁 Claim Your Win Reward!</h3>
           <ClaimRewardButton hasWon={true} />
         </div>
       )}

@@ -11,22 +11,7 @@ import { Button } from "@/components/DemoComponents";
 import { Icon } from "@/components/DemoComponents";
 import { ThreeCardMonteGame } from "@/components/three-card-monte-game";
 
-import {
-  ConnectWallet,
-  Wallet,
-  WalletDropdown,
-  WalletDropdownBasename, 
-  WalletDropdownFundLink, 
-  WalletDropdownLink, 
-  WalletDropdownDisconnect,
-} from '@coinbase/onchainkit/wallet';
-import {
-  Address,
-  Avatar,
-  Name,
-  Identity,
-  EthBalance, 
-} from '@coinbase/onchainkit/identity';
+
  
 // omitted for brevity
 
@@ -79,46 +64,19 @@ export default function App() {
 
   return (
     <div className="flex flex-col min-h-screen font-sans text-[var(--app-foreground)] mini-app-theme from-[var(--app-background)] to-[var(--app-gray)]">
-      <div className="w-full max-w-md mx-auto px-4 py-3">
-        <header className="flex justify-between items-center mb-3 h-11">
-          <div>
-            <h1 className="text-2xl font-bold">Three Card Monte</h1>
+      <div className="w-full max-w-4xl mx-auto px-4 py-6">
+        <header className="flex flex-col items-center justify-center mb-6">
+          <div className="w-full text-center mb-2">
+            <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-400">Three Card Monte</h1>
           </div>
-          <div>{saveFrameButton}</div>
+          <div className="mt-2">{saveFrameButton}</div>
         </header>
 
         <main className="flex-1">
           <ThreeCardMonteGame />
- 
-        <Wallet>
-          <ConnectWallet>
-            <Avatar className="h-6 w-6" />
-            <Name />
-          </ConnectWallet>
-          <WalletDropdown>
-            <Identity
-              className="px-4 pt-3 pb-2"
-              hasCopyAddressOnClick
-            >
-              <Avatar />
-              <Name />
-              <Address />
-              <EthBalance />
-            </Identity>
-            <WalletDropdownBasename />
-            <WalletDropdownLink
-              icon="wallet"
-              href="https://keys.coinbase.com"
-            >
-              Wallet
-            </WalletDropdownLink>
-            <WalletDropdownFundLink />
-            <WalletDropdownDisconnect />
-          </WalletDropdown>
-        </Wallet>
         </main>
 
-        <footer className="mt-2 pt-4 flex justify-center">
+        <footer className="mt-8 pt-4 flex justify-center border-t border-gray-800">
           <Button
             variant="ghost"
             size="sm"
