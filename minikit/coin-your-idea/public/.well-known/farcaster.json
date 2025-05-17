@@ -1,0 +1,34 @@
+{
+    "accountAssociation": {
+        "header": "eyJmaWQiOjc5ODg3MiwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweGIyMjZBODZFM2EyZUQwZUQwNWI0NWI4ODIxNGVCNzczN2IyN2Q4ZjAifQ",
+        "payload": "eyJkb21haW4iOiJjb2luc3BhcmsudmVyY2VsLmFwcCJ9",
+        "signature": "MHhkZTYyMWQ4ZTBjY2FjMGU3YzAyZWJiYWI4MDcyY2QxNTdmNTE2ODRjNjFlYzRmYzllMGRmNWI1N2M2ODAzNDdkMzA0NjdjM2ZjMGI3NTg5MzhlYzQ5N2UzZTVkMjQyNTgxZjExY2U0NDQwZjZmYTgxZGZkMDExOTg5MjdmMDViMDFj"
+      },
+    "frame": {
+      "version": "1",
+      "name": "CoinSpark",
+      "iconUrl": "https://coinspark.vercel.app/app.png",
+      "splashImageUrl": "https://coinspark.vercel.app/logo.png",
+      "splashBackgroundColor": "#000000",
+      "homeUrl": "https://coinspark.vercel.app",
+      "subtitle": "Coin your ideas",
+      "description": "CoinSpark is a platform for creating and coining ideas.",
+      "screenshotUrls": [
+        "https://coinspark.vercel.app/screenshot1.png",
+        "https://coinspark.vercel.app/screenshot2.png",
+        "https://coinspark.vercel.app/screenshot3.png"
+      ],
+      "primaryCategory": "social",
+      "tags": [
+        "coinspark",
+        "leaderboard",
+        "warpcast",
+        "earn"
+      ],
+      "heroImageUrl": "https://coinspark.vercel.app/og.png",
+      "tagline": "Top Warpcast creators",
+      "ogTitle": "CoinSpark",
+      "ogDescription": "Climb the leaderboard and earn rewards by being active on Warpcast.",
+      "ogImageUrl": "https://coinspark.vercel.app/og.png"
+    }
+  }
