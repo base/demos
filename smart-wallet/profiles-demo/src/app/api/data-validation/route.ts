@@ -1,4 +1,6 @@
 // app/api/data-validation/route.ts
+import { encodeFunctionData, erc20Abi, numberToHex, parseUnits } from "viem";
+
 export async function POST(request: Request) {
   // Get the data from the request body
   const requestData = await request.json();
@@ -23,11 +25,17 @@ export async function POST(request: Request) {
         (physicalAddress.postalCode.length < 5 ||
           physicalAddress.postalCode.length > 10)
       ) {
+        if (!errors.physicalAddress) {
+          errors.physicalAddress = {};
+        }
         errors.physicalAddress.postalCode = "Invalid postal code format";
       }
 
       // Check country validation - for example, only allow certain countries
       if (physicalAddress.countryCode && physicalAddress.countryCode === "XY") {
+        if (!errors.physicalAddress) {
+          errors.physicalAddress = {};
+        }
         errors.physicalAddress.countryCode = "We don't ship to this country";
       }
 
@@ -36,6 +44,9 @@ export async function POST(request: Request) {
         physicalAddress.city &&
         physicalAddress.city.toLowerCase() === "restricted"
       ) {
+        if (!errors.physicalAddress) {
+          errors.physicalAddress = {};
+        }
         errors.physicalAddress.city = "We don't ship to this city";
       }
     }
@@ -45,10 +56,25 @@ export async function POST(request: Request) {
       return Response.json({ errors });
     }
 
+    // change the calls to the actual calls
+    const calls = [
+      {
+        to: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC contract address on Base Sepolia
+        data: encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "transfer",
+          args: [
+            "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+            parseUnits("0.02", 6),
+          ],
+        }),
+      }
+    ] 
+
     // If all validations pass, return success
     return Response.json({
       request: {
-        calls: requestData.calls,
+        calls: calls,
         chainId: requestData.chainId,
         capabilities: requestData.capabilities
       }
