@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { encodeFunctionData, erc20Abi, numberToHex, parseUnits } from "viem";
-import { useConnect, useSendCalls } from "wagmi";
+import { useConnect, useSendCalls, useCallsStatus } from "wagmi";
 
 interface DataRequest {
   email: boolean;
@@ -25,6 +25,19 @@ export default function Home() {
 
   const { sendCalls, data, error, isPending } = useSendCalls();
   const { connect, connectors } = useConnect()
+  const [id, setId] = useState<string>("");
+  const statusResult = useCallsStatus({
+    id,
+    query: {
+      enabled: id !== "",
+      refetchInterval: (data) => {
+        if (data?.state.data?.statusCode === 200) {
+          return false;
+        }
+        return 500;
+      },
+    },
+  });
 
 
   // Function to get callback URL - replace in production
@@ -55,6 +68,7 @@ export default function Home() {
       }
 
       setResult(newResult);
+      setId(data.callsId);
     } else if (data && !data.capabilities?.dataCallback) {
       setResult({ success: false, error: "Invalid response - no data callback" });
     }
@@ -96,7 +110,7 @@ export default function Home() {
               abi: erc20Abi,
               functionName: "transfer",
               args: [
-                "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+                "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
                 parseUnits("0.01", 6),
               ],
             }),
@@ -117,6 +131,8 @@ export default function Home() {
       });
     }
   }
+
+  console.log("statusResult", statusResult);
 
   return (
     <div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
