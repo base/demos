@@ -31,9 +31,9 @@ This repository contains example applications demonstrating various [Base] and [
 
 ## Available Demos
 
-### Smart Wallet Demo
+### Base Account Demo
 
-- Location: `smart-wallet/`
+- Location: `base-account/`
 - Description: Demonstrates the implementation of smart contract wallets on Base
 - Features: Spend Limits, Sub-accounts, and Zora SDK examples
 
