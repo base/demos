@@ -5,7 +5,7 @@ An AI-powered Next.js application that allows users to buy Zora creator coins th
 ## Features
 
 - **Sign in with Base**: Secure authentication using Base Account
-- **Flexible Spend Permissions**: Set daily spending limits ($1-$2) for safe testing
+- **Flexible Spend Permissions**: Set daily spending limits ($0.10-$0.20) for safe testing
 - **AI Chat Interface**: Natural language interaction powered by GPT-4 to buy Zora creator coins
 - **CDP Smart Accounts**: Server wallets with gas sponsorship for seamless transactions
 - **Gas-Free Experience**: All transactions sponsored via CDP paymaster
@@ -63,7 +63,7 @@ An AI-powered Next.js application that allows users to buy Zora creator coins th
 ## Usage
 
 1. **Sign In**: Click "Sign in with Base" to connect your wallet
-2. **Set Permissions**: Configure your daily spending limit ($1-$2) for safe testing
+2. **Set Permissions**: Configure your daily spending limit ($0.10-$0.20) for safe testing
 3. **Chat**: Start chatting with the AI agent to buy Zora coins
 4. **View Activity**: Check your purchased coins at [account.base.app/activity](https://account.base.app/activity)
 

@@ -21,7 +21,7 @@ export const USDC_BASE_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
 export async function requestUserSpendPermission(
   userAccount: string,
   spenderAccount: string,
-  dailyLimitUSD: number = 50
+  dailyLimitUSD: number = 0.2
 ): Promise<SpendPermission> {
   try {
     // Convert USD to USDC (6 decimals)

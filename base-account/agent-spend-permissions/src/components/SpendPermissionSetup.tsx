@@ -13,7 +13,7 @@ export function SpendPermissionSetup({
   userAddress,
   onPermissionGranted,
 }: SpendPermissionSetupProps) {
-  const [dailyLimit, setDailyLimit] = useState(2);
+  const [dailyLimit, setDailyLimit] = useState(0.2);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -101,16 +101,17 @@ export function SpendPermissionSetup({
             <input
               type="range"
               id="dailyLimit"
-              min="1"
-              max="2"
+              min="0.1"
+              max="0.2"
+              step="0.01"
               value={dailyLimit}
               onChange={(e) => setDailyLimit(Number(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-1">
-              <span>$1</span>
-              <span className="font-medium text-base-blue">${dailyLimit}</span>
-              <span>$2</span>
+              <span>$0.10</span>
+              <span className="font-medium text-base-blue">${dailyLimit.toFixed(2)}</span>
+              <span>$0.20</span>
             </div>
           </div>
         </div>
@@ -128,14 +129,14 @@ export function SpendPermissionSetup({
         >
           {isLoading
             ? "Setting up..."
-            : `Grant $${dailyLimit}/day Spending Permission`}
+            : `Grant $${dailyLimit.toFixed(2)}/day Spending Permission`}
         </button>
       </div>
 
       <div className="mt-4 text-xs text-gray-500">
         <p>
           💡 This creates a secure spending permission that allows the agent to
-          spend up to ${dailyLimit} per day from your wallet to buy Zora coins.
+          spend up to ${dailyLimit.toFixed(2)} per day from your wallet to buy Zora coins.
           Gas fees are sponsored automatically.
         </p>
       </div>

@@ -129,7 +129,7 @@ export default function Home() {
                   <span className="text-white font-bold">2</span>
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-2">Set Limits</h3>
-                <p className="text-sm text-gray-600">Configure your daily spending limits ($1-$2)</p>
+                <p className="text-sm text-gray-600">Configure your daily spending limits ($0.10-$0.20)</p>
               </div>
               
               <div className="bg-white rounded-lg p-6 shadow-sm">
