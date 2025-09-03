@@ -108,7 +108,7 @@ export function ShareButton({ displayName }: ShareButtonProps) {
     } catch (error) {
       console.error("❌ Failed to share cast:", error);
       setStatus('error');
-      setErrorMessage('Failed to share to Farcaster');
+      setErrorMessage('Failed to share to Base App');
     }
   };
 
@@ -117,8 +117,8 @@ export function ShareButton({ displayName }: ShareButtonProps) {
     switch (status) {
       case 'capturing': return 'Capturing image...';
       case 'uploading': return 'Uploading...';
-      case 'ready': return 'Share to Farcaster';
-      case 'sharing': return 'Opening Farcaster...';
+      case 'ready': return 'Share to Base App';
+      case 'sharing': return 'Opening Base App...';
       case 'error': return 'Try again';
       default: return 'Create Shareable Image';
     }
