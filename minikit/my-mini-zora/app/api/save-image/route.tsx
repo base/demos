@@ -39,8 +39,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // URL encode the displayName to handle special characters like parentheses
-    const encodedDisplayName = encodeURIComponent(displayName);
+    // Remove spaces and URL encode the displayName to handle special characters like parentheses
+    const cleanDisplayName = displayName.replace(/\s+/g, '');
+    const encodedDisplayName = encodeURIComponent(cleanDisplayName);
 
     // Save the image to Vercel Blob with encoded filename
     const blob = await put(`images/${encodedDisplayName}.png`, readableStream, {

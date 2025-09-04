@@ -95,8 +95,9 @@ export function ShareButton({ displayName }: ShareButtonProps) {
     setStatus('sharing');
     
     try {
-      // URL encode the displayName for the frame URL
-      const encodedDisplayName = encodeURIComponent(displayName);
+      // Remove spaces and URL encode the displayName for the frame URL
+      const cleanDisplayName = displayName.replace(/\s+/g, '');
+      const encodedDisplayName = encodeURIComponent(cleanDisplayName);
       const frameUrl = `${process.env.NEXT_PUBLIC_URL}/frame/${encodedDisplayName}`;
       
       await sdk.actions.composeCast({
