@@ -4,10 +4,10 @@ export async function GET() {
   const config = {
     accountAssociation: {
       header:
-        "eyJmaWQiOjIwMzkwLCJ0eXBlIjoiYXV0aCIsImtleSI6IjB4RjA3NDFhMGI5ZjhBN2M2ZUUzNzQwYkQyMjNBODQ1N0UxNzM5MjIyMyJ9",
-      payload: "eyJkb21haW4iOiJmdWxsLW1pbmktZGVtby52ZXJjZWwuYXBwIn0",
+        "eyJmaWQiOjEyMTQyLCJ0eXBlIjoiY3VzdG9keSIsImtleSI6IjB4MDRlNkYxMTFlQmY2RkQyNTU3NmQ0ODA0ODA5NjI0MzVEYzNhYThEOCJ9",
+      payload: "eyJkb21haW4iOiJmcmFtZXMtdjItZGVtby1saWxhYy52ZXJjZWwuYXBwIn0",
       signature:
-        "jqp+dMIhipQzfGVWxVp762y4TQJA8x4uyny0DOF+GZFRuUBE+/Moz+GXE66FbTRqt+QBiZ6feGBqWQHP1mEY8Bw=",
+        "MHg5MGI1YzA0Zjc3MGY1M2I4M2I3OGQzOTMwNTNjMmJjZjUwNmE3ZThjNDViYmEwNDk2OTcwZTM1ZTQ0YzU2MGU1Nzc4Y2Y1ZTJkNDY2YzE1MWQxNGMzYmFjNzM3ZDcxZGEwZDVjYWJmMGMzZTdhYTc2YzRjMmQ5MmE5NDJhYjkyODFj",
     },
       "frame": {
         "version": "1",
@@ -45,7 +45,7 @@ export async function GET() {
         "tags": ["base", "baseapp", "miniapp", "demo", "basepay"]
       },
       "baseBuilder": {
-        "allowedAddresses": ["0x4522FAc5C7aa59cFa7923961C5cF7Ea3bb493978"],
+        "allowedAddresses": ["0x8342A48694A74044116F330db5050a267b28dD85"],
       }
   };
 

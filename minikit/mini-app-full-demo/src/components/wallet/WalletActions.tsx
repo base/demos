@@ -17,16 +17,18 @@ import { Button } from "~/components/ui/Button";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base, optimism } from "wagmi/chains";
 import { BaseError, UserRejectedRequestError } from "viem";
-import { sdk } from "@farcaster/miniapp-sdk";
+
 import { SignInWithBaseButton } from "@base-org/account-ui/react";
 import { createBaseAccountSDK } from "@base-org/account";
 import { METADATA } from "~/lib/utils";
+import { SiweMessage } from "siwe";
 
+// dylsteck.base.eth
 const RECIPIENT_ADDRESS = "0x8342A48694A74044116F330db5050a267b28dD85";
 
-// Initialize Base Account SDK
 const baseAccountSDK = createBaseAccountSDK({
   appName: METADATA.name,
+  appLogoUrl: METADATA.iconImageUrl
 });
 
 const renderError = (error: Error | null): React.ReactElement | null => {
@@ -141,8 +143,63 @@ export function SignMessage() {
       </Button>
       {isSignError && renderError(signError)}
       {signature && (
-        <div className="mt-2 text-xs">
-          <div>Signature: {signature}</div>
+        <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+          <div className="text-gray-600 mb-1">Response</div>
+          <div className="text-green-600 font-mono break-all">{signature}</div>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function SignSiweMessage() {
+  const { address, isConnected } = useAccount();
+  const { connectAsync } = useConnect();
+  const chainId = useChainId();
+  const {
+    signMessage,
+    data: signature,
+    error: signError,
+    isError: isSignError,
+    isPending: isSignPending,
+  } = useSignMessage();
+
+  const handleSignSiweMessage = useCallback(async (): Promise<void> => {
+    if (!isConnected || !address) {
+      await connectAsync({
+        chainId: base.id,
+        connector: config.connectors[0],
+      });
+      return;
+    }
+
+    const siweMessage = new SiweMessage({
+      domain: window.location.host,
+      address,
+      statement: "Sign in with Ethereum to the app.",
+      uri: window.location.origin,
+      version: "1",
+      chainId: chainId || base.id,
+      nonce: Math.random().toString(36).substring(2, 15),
+    });
+
+    signMessage({ message: siweMessage.prepareMessage() });
+  }, [connectAsync, isConnected, address, chainId, signMessage]);
+
+  return (
+    <>
+      <Button
+        onClick={handleSignSiweMessage}
+        disabled={isSignPending}
+        isLoading={isSignPending}
+      >
+        Sign Message (SIWE)
+      </Button>
+      {isSignError && renderError(signError)}
+      {signature && (
+        <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+          <div className="text-gray-600 mb-1">Response</div>
+          <div className="text-green-600 font-mono break-all">{signature}</div>
         </div>
       )}
     </>
@@ -164,18 +221,12 @@ export function SendEth() {
       hash: data,
     });
 
-  const toAddr = useMemo((): `0x${string}` => {
-    return chainId === base.id
-      ? "0x32e3C7fD24e175701A35c224f2238d18439C7dBC"
-      : "0xB3d8d7887693a9852734b4D25e9C0Bb35Ba8a830";
-  }, [chainId]);
-
   const handleSend = useCallback((): void => {
     sendTransaction({
-      to: toAddr,
+      to: RECIPIENT_ADDRESS,
       value: 1n,
     });
-  }, [toAddr, sendTransaction]);
+  }, [sendTransaction]);
 
   return (
     <>
@@ -184,13 +235,14 @@ export function SendEth() {
         disabled={!isConnected || isSendTxPending}
         isLoading={isSendTxPending}
       >
-        Send Transaction (eth)
+        Send Transaction (ETH)
       </Button>
       {isSendTxError && renderError(sendTxError)}
       {data && (
-        <div className="mt-2 text-xs">
-          <div>Hash: {truncateAddress(data)}</div>
-          <div>
+        <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+          <div className="text-gray-600 mb-1">Response</div>
+          <div className="text-green-600 font-mono break-all">Hash: {truncateAddress(data)}</div>
+          <div className="text-green-600 font-mono">
             Status:{" "}
             {isConfirming
               ? "Confirming..."
@@ -308,13 +360,14 @@ export function SendTransaction() {
         disabled={!isConnected || isSendTxPending}
         isLoading={isSendTxPending}
       >
-        Send Transaction (contract)
+        Send Transaction (Contract)
       </Button>
       {isSendTxError && renderError(sendTxError)}
       {txHash && (
-        <div className="mt-2 text-xs">
-          <div>Hash: {truncateAddress(txHash)}</div>
-          <div>
+        <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+          <div className="text-gray-600 mb-1">Response</div>
+          <div className="text-green-600 font-mono break-all">Hash: {truncateAddress(txHash)}</div>
+          <div className="text-green-600 font-mono">
             Status:{" "}
             {isConfirming
               ? "Confirming..."
@@ -328,84 +381,4 @@ export function SendTransaction() {
   );
 }
 
-export function GetEthereumProvider() {
-  const [providerInfo, setProviderInfo] = useState<unknown>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleGetProvider = useCallback(async (): Promise<void> => {
-    try {
-      setLoading(true);
-      setError(null);
-      const provider = await sdk.wallet.getEthereumProvider();
-      
-      if (!provider) {
-        throw new Error('Provider not available');
-      }
-      
-      // Type the provider properly
-      const typedProvider = provider as {
-        request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-        [key: string]: unknown;
-      };
-      
-      // Extract provider info (avoiding circular references)
-      const providerAny = provider as Record<string, unknown>;
-      const info: Record<string, unknown> = {
-        // Basic provider properties
-        isConnected: typeof typedProvider.request === 'function',
-        // Check for common provider properties
-        isMetaMask: providerAny.isMetaMask || false,
-        isWalletConnect: providerAny.isWalletConnect || false,
-        isFarcaster: true, // Since it's from Farcaster SDK
-      };
-      
-      // Get wallet address
-      try {
-        const accounts = await typedProvider.request({ method: 'eth_accounts' }) as string[];
-        if (accounts && accounts.length > 0) {
-          info.walletAddress = accounts[0];
-          info.walletAddressTruncated = truncateAddress(accounts[0]);
-        }
-      } catch (err) {
-        console.error('Failed to get wallet address:', err);
-      }
-      
-      // Add state if it exists
-      if (providerAny._state) {
-        info.state = providerAny._state;
-      }
-      
-      setProviderInfo(info);
-    } catch (err) {
-      setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return (
-    <>
-      <Button
-        onClick={handleGetProvider}
-        disabled={loading}
-        isLoading={loading}
-      >
-        Get Ethereum Provider
-      </Button>
-      {error && renderError(new Error(error))}
-      {providerInfo && (
-        <div className="mt-2 text-xs">
-          <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-            <div className="font-semibold text-gray-500 dark:text-gray-400 mb-1">
-              Provider Info
-            </div>
-            <pre className="whitespace-pre-wrap break-words text-emerald-500 dark:text-emerald-400">
-              {JSON.stringify(providerInfo, null, 2)}
-            </pre>
-          </div>
-        </div>
-      )}
-    </>
-  );
-} 
+ 

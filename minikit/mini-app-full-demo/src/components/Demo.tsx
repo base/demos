@@ -18,7 +18,7 @@ import { ComposeCastAction } from "~/components/actions/compose-cast";
 import { SetPrimaryButtonAction } from "~/components/actions/set-primary-button";
 import { AddMiniAppAction } from "~/components/actions/add-miniapp";
 import { CloseMiniAppAction } from "~/components/actions/close-miniapp";
-import { WalletConnect, SignMessage, SendEth, SignTypedData, SwitchChain, SendTransaction, GetEthereumProvider } from "~/components/wallet/WalletActions";
+import { WalletConnect, SignMessage, SignSiweMessage, SendEth, SignTypedData, SwitchChain, SendTransaction } from "~/components/wallet/WalletActions";
 import { BasePay } from "~/components/wallet/BasePay";
 import { GetChainsAction } from "~/components/actions/get-chains";
 import { GetCapabilitiesAction } from "~/components/actions/get-capabilities";
@@ -98,8 +98,8 @@ export default function Demo() {
 
   const WalletActionsComponent = () => (
     <div className="space-y-4">
-      <GetEthereumProvider />
       <SignMessage />
+      <SignSiweMessage />
       <SendEth />
       <SendTransaction />
       <SignTypedData />
