@@ -38,7 +38,7 @@ This repository contains example applications demonstrating various [Base] and [
 | **Base App Coins** | Base Account | `base-app-coins/` | Index and load metadata for Uniswap v4 pools related to coins created via the Base App |
 | **Hangman Onchain** | Paymaster | `paymaster/hangman-onchain/` | Classic hangman game with onchain win recording using Coinbase CDP |
 | **Lingos Game** | Paymaster | `paymaster/onchain-game-lingos/` | Phrase completion game testing knowledge of international phrases and expressions |
-| **Full Mini Demo** | MiniKit | `minikit/full-mini-demo/` | Complete Base Mini App demo showcasing all MiniKit functionality in Base App |
+| **Full Mini App Demo** | MiniKit | `minikit/mini-app-full-demo/` | Comprehensive Base Mini App demo showcasing all functionality in Base App |
 | **Mini App Route** | MiniKit | `minikit/mini-app-route/` | Basic Next.js mini app template with routing examples |
 | **Mini App Wrapped** | MiniKit | `minikit/mini-app-wrapped/` | Simple Next.js mini app with MiniKit provider wrapper |
 | **Mini Neynar** | MiniKit | `minikit/mini-neynar/` | MiniKit template with Neynar API integration for Farcaster data |
@@ -68,5 +68,5 @@ This project is licensed under the terms of the included LICENSE file.
 
 ---
 
-[Coinbase Developer Platform]: https://portal.cdp.coinbase.com/
+[Coinbase Developer Platform]: https://portal.cdp.coinbase.com
 [Base]: https://base.org

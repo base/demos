@@ -2,6 +2,8 @@
 
 A demo [mini app](https://miniapps.farcaster.xyz) to demonstrate the functionality available for mini app developers in [Base App](https://base.app).
 
+Note: this Base Mini App Demo used to live [here](https://github.com/Vicolee/frames-v2-demo) and was recently moved to this `base/demos` repo so it can be more easily found
+
 ## Getting Started
 
 This is a [NextJS](https://nextjs.org/) + TypeScript + React app.
