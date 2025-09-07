@@ -6,13 +6,8 @@ const client = createPublicClient({
   transport: http() 
 })
 
-const nonces = new Set<string>()
-
-export function generateNonce(): string {
-  const nonce = window.crypto.randomUUID().replace(/-/g, '')
-  nonces.add(nonce)
-  return nonce
-}
+// Nonce store is managed in the API route to avoid client/server mismatch
+// This utility is for signature verification only
 
 export async function verifySignature(
   address: string, 
