@@ -18,37 +18,101 @@ export const SignInWithBaseButton = ({
   const handleSignIn = async () => {
     setIsLoading(true);
     try {
-      // Initialize the SDK (no config needed for defaults)
+      // Initialize the SDK
       const provider = createBaseAccountSDK({
         appName: "Agent Spend Permissions",
       }).getProvider();
 
-      // 1 — get a fresh nonce (generate locally)
-      const nonce = window.crypto.randomUUID().replace(/-/g, "");
+      // 1 — Get a fresh nonce from the server
+      const nonceResponse = await fetch('/api/auth/verify', { method: 'GET' });
+      const { nonce } = await nonceResponse.json();
+      
+      console.log('Using nonce:', nonce);
 
-      // 2 — connect and authenticate
-      const response = await provider.request({
+      const switchChainResponse = await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: '0x2105' }],
+      })
+
+      console.log('Switch chain response:', switchChainResponse);
+
+      // 2 — Connect and get address
+      const connectResponse = await provider.request({
         method: "wallet_connect",
         params: [
           {
             version: "1",
             capabilities: {
               signInWithEthereum: {
-                chainId: 8453,
+                chainId: '0x2105',
                 nonce,
               },
             },
           },
         ],
-      }) as { accounts: { address: string }[] };
+      }) as { 
+        accounts: { address: string }[], 
+        signInWithEthereum?: { 
+          message: string, 
+          signature: string 
+        } 
+      };
 
-      console.log("accounts", response.accounts);
-      const { address } = response.accounts[0];
+      console.log("Connect response:", connectResponse);
+      const { address } = connectResponse.accounts[0];
 
-      console.log("✅ Successfully connected with Base Account!");
-      console.log("Address:", address);
+      // 3 — Check if we got SIWE data from the response
+      if (connectResponse.signInWithEthereum) {
+        const { message, signature } = connectResponse.signInWithEthereum;
+        console.log('SIWE message:', message);
+        console.log('SIWE signature:', signature);
 
-      // No signature verification needed here
+        // 4 — Verify signature on the server
+        const verifyResponse = await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address, message, signature })
+        });
+
+        const verifyData = await verifyResponse.json();
+        
+        if (!verifyData.ok) {
+          throw new Error(verifyData.error || 'Signature verification failed');
+        }
+
+        console.log("✅ Signature verified successfully!");
+      } else {
+        // Fallback: manual signing if SIWE not available
+        console.log("⚠️ SIWE not available, using manual signing");
+        
+        // Create SIWE message manually
+        const domain = window.location.host;
+        const uri = window.location.origin;
+        const message = `${domain} wants you to sign in with your Ethereum account:\n${address}\n\nAgent Spend Permissions Authentication\n\nURI: ${uri}\nVersion: 1\nChain ID: 8453\nNonce: ${nonce}\nIssued At: ${new Date().toISOString()}`;
+        
+        // Request signature
+        const signature = await provider.request({
+          method: 'personal_sign',
+          params: [message, address]
+        });
+
+        // Verify signature on server
+        const verifyResponse = await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address, message, signature })
+        });
+
+        const verifyData = await verifyResponse.json();
+        
+        if (!verifyData.ok) {
+          throw new Error(verifyData.error || 'Signature verification failed');
+        }
+
+        console.log("✅ Manual signature verified successfully!");
+      }
+
+      console.log("✅ Authentication complete for address:", address);
       onSignIn(address);
     } catch (err) {
       console.error("Sign in failed:", err);

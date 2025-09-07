@@ -28,31 +28,11 @@ export default function Home() {
   }
 
   const handleSignIn = async (address: string) => {
-    setIsLoading(true)
-    try {
-      const response = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          address,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.ok) {
-        setIsAuthenticated(true)
-        setUserAddress(address)
-      } else {
-        console.error('Authentication failed:', data.error)
-      }
-    } catch (error) {
-      console.error('Sign in error:', error)
-    } finally {
-      setIsLoading(false)
-    }
+    // Signature verification is now handled in the SignInWithBase component
+    // If we reach this point, the user has been successfully authenticated
+    console.log('User authenticated with address:', address)
+    setIsAuthenticated(true)
+    setUserAddress(address)
   }
 
   const handlePermissionGranted = () => {
