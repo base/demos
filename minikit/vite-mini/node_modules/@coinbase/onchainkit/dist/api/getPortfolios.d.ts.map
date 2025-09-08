@@ -1,0 +1,1 @@
+{"version":3,"file":"getPortfolios.d.ts","sourceRoot":"","sources":["../../src/api/getPortfolios.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,cAAc,EAAE,MAAM,0BAA0B,CAAC;AAG1D,OAAO,KAAK,EACV,QAAQ,EACR,mBAAmB,EACnB,qBAAqB,EACtB,MAAM,SAAS,CAAC;AAEjB;;;GAGG;AACH,wBAAsB,aAAa,CACjC,MAAM,EAAE,mBAAmB,EAC3B,QAAQ,GAAE,cAAmC,GAC5C,OAAO,CAAC,qBAAqB,GAAG,QAAQ,CAAC,CAwB3C"}

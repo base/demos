@@ -1,0 +1,1 @@
+{"version":3,"file":"packageInfo.util.d.ts","sourceRoot":"","sources":["../../../../src/utils/packageInfo.util.ts"],"names":[],"mappings":"AAAA,MAAM,WAAW,WAAW;IAC1B,OAAO,EAAE,MAAM,CAAC;IAChB,WAAW,EAAE,MAAM,CAAC;IACpB,OAAO,EAAE,aAAa,GAAG,YAAY,CAAC;CACvC;AAED,eAAO,MAAM,cAAc,QAAO,WAOjC,CAAC"}

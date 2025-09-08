@@ -1,0 +1,1 @@
+{"version":3,"file":"constants.js","sources":["../../src/earn/constants.ts"],"sourcesContent":["export const MORPHO_TOKEN_BASE_ADDRESS =\n  '0xBAa5CC21fd487B8Fcc2F632f3F4E8D37262a0842' as const;\n"],"names":[],"mappings":"AAAO,MAAM,4BACX;"}

@@ -1,0 +1,1 @@
+{"version":3,"file":"TabContent.d.ts","sourceRoot":"","sources":["../../../../src/internal/components/tabs/TabContent.tsx"],"names":[],"mappings":"AAEA,KAAK,eAAe,GAAG;IACrB,QAAQ,EAAE,KAAK,CAAC,SAAS,CAAC;IAC1B,KAAK,EAAE,MAAM,CAAC;IACd,SAAS,CAAC,EAAE,MAAM,CAAC;CACpB,CAAC;AAEF,wBAAgB,UAAU,CAAC,EAAE,QAAQ,EAAE,KAAK,EAAE,SAAS,EAAE,EAAE,eAAe,kDAgBzE"}

@@ -1,0 +1,1 @@
+{"version":3,"file":"sendCalls.js","sourceRoot":"","sources":["../../../src/query/sendCalls.ts"],"names":[],"mappings":"AAEA,OAAO,EAIL,SAAS,GACV,MAAM,yBAAyB,CAAA;AAIhC,MAAM,UAAU,wBAAwB,CACtC,MAAc;IAEd,OAAO;QACL,UAAU,CAAC,SAAS;YAClB,OAAO,SAAS,CAAC,MAAM,EAAE,SAAS,CAAC,CAAA;QACrC,CAAC;QACD,WAAW,EAAE,CAAC,WAAW,CAAC;KAK3B,CAAA;AACH,CAAC"}

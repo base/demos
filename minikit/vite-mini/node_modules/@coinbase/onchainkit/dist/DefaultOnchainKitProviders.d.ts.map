@@ -1,0 +1,1 @@
+{"version":3,"file":"DefaultOnchainKitProviders.d.ts","sourceRoot":"","sources":["../src/DefaultOnchainKitProviders.tsx"],"names":[],"mappings":"AACA,OAAO,EACL,KAAK,iBAAiB,EAMvB,MAAM,OAAO,CAAC;AAMf,OAAO,KAAK,EAAE,uBAAuB,EAAE,MAAM,cAAc,CAAC;AAE5D,wBAAgB,0BAA0B,CAAC,EACzC,QAAQ,EACR,UAAU,GACX,EAAE,iBAAiB,CAAC;IAAE,UAAU,CAAC,EAAE,uBAAuB,CAAC,YAAY,CAAC,CAAA;CAAE,CAAC,2CAe3E"}

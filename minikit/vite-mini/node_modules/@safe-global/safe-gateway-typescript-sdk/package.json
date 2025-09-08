@@ -1,0 +1,51 @@
+{
+  "name": "@safe-global/safe-gateway-typescript-sdk",
+  "version": "3.23.1",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "repository": "git@github.com:safe-global/safe-gateway-typescript-sdk.git",
+  "author": "katspaugh",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "husky": "^9.1.7",
+    "jest": "^29.7.0",
+    "prettier": "^3.4.2",
+    "ts-jest": "^29.2.5",
+    "typescript": "5.7.3"
+  },
+  "scripts": {
+    "lint": "tsc && eslint \"./src/**/*\"",
+    "lint:fix": "yarn lint --fix",
+    "lint:report": "yarn lint --output-file eslint_report.json --format json",
+    "build": "rm -rf dist && tsc",
+    "prettier": "prettier -w './**/*.ts'",
+    "test": "jest --watch --coverage .",
+    "test:check": "jest --testPathPattern=tests",
+    "test:ci": "jest --ci --coverage --json --watchAll=false --testLocationInResults --runInBand --testPathPattern=tests"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged --allow-empty"
+    }
+  },
+  "lint-staged": {
+    "src/**/*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --w ."
+    ]
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}

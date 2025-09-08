@@ -1,0 +1,11 @@
+import type { Config, ReadContractErrorType, ResolvedRegister } from '@wagmi/core';
+import type { UnionCompute } from '@wagmi/core/internal';
+import { type ReadContractData, type ReadContractOptions, type ReadContractQueryFnData, type ReadContractQueryKey } from '@wagmi/core/query';
+import type { Abi, ContractFunctionArgs, ContractFunctionName } from 'viem';
+import type { ConfigParameter, QueryParameter } from '../types/properties.js';
+import { type UseQueryReturnType } from '../utils/query.js';
+export type UseReadContractParameters<abi extends Abi | readonly unknown[] = Abi, functionName extends ContractFunctionName<abi, 'pure' | 'view'> = ContractFunctionName<abi, 'pure' | 'view'>, args extends ContractFunctionArgs<abi, 'pure' | 'view', functionName> = ContractFunctionArgs<abi, 'pure' | 'view', functionName>, config extends Config = Config, selectData = ReadContractData<abi, functionName, args>> = UnionCompute<ReadContractOptions<abi, functionName, args, config> & ConfigParameter<config> & QueryParameter<ReadContractQueryFnData<abi, functionName, args>, ReadContractErrorType, selectData, ReadContractQueryKey<abi, functionName, args, config>>>;
+export type UseReadContractReturnType<abi extends Abi | readonly unknown[] = Abi, functionName extends ContractFunctionName<abi, 'pure' | 'view'> = ContractFunctionName<abi, 'pure' | 'view'>, args extends ContractFunctionArgs<abi, 'pure' | 'view', functionName> = ContractFunctionArgs<abi, 'pure' | 'view', functionName>, selectData = ReadContractData<abi, functionName, args>> = UseQueryReturnType<selectData, ReadContractErrorType>;
+/** https://wagmi.sh/react/api/hooks/useReadContract */
+export declare function useReadContract<const abi extends Abi | readonly unknown[], functionName extends ContractFunctionName<abi, 'pure' | 'view'>, args extends ContractFunctionArgs<abi, 'pure' | 'view', functionName>, config extends Config = ResolvedRegister['config'], selectData = ReadContractData<abi, functionName, args>>(parameters?: UseReadContractParameters<abi, functionName, args, config, selectData>): UseReadContractReturnType<abi, functionName, args, selectData>;
+//# sourceMappingURL=useReadContract.d.ts.map

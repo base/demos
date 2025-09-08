@@ -1,0 +1,43 @@
+export declare const story: {
+    blockExplorers?: {
+        [key: string]: {
+            name: string;
+            url: string;
+            apiUrl?: string | undefined;
+        };
+        default: {
+            name: string;
+            url: string;
+            apiUrl?: string | undefined;
+        };
+    } | undefined;
+    contracts?: import("../index.js").Prettify<{
+        [key: string]: import("../../index.js").ChainContract | {
+            [sourceId: number]: import("../../index.js").ChainContract | undefined;
+        } | undefined;
+    } & {
+        ensRegistry?: import("../../index.js").ChainContract | undefined;
+        ensUniversalResolver?: import("../../index.js").ChainContract | undefined;
+        multicall3?: import("../../index.js").ChainContract | undefined;
+        universalSignatureVerifier?: import("../../index.js").ChainContract | undefined;
+    }> | undefined;
+    id: 1514;
+    name: "Story";
+    nativeCurrency: {
+        readonly decimals: 18;
+        readonly name: "IP Token";
+        readonly symbol: "IP";
+    };
+    rpcUrls: {
+        readonly default: {
+            readonly http: readonly ["https://mainnet.storyrpc.io"];
+        };
+    };
+    sourceId?: number | undefined;
+    testnet: false;
+    custom?: Record<string, unknown> | undefined;
+    fees?: import("../../index.js").ChainFees<undefined> | undefined;
+    formatters?: undefined;
+    serializers?: import("../../index.js").ChainSerializers<undefined, import("../../index.js").TransactionSerializable> | undefined;
+};
+//# sourceMappingURL=story.d.ts.map

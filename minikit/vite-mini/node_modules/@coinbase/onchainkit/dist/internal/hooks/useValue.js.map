@@ -1,0 +1,1 @@
+{"version":3,"file":"useValue.js","sources":["../../../src/internal/hooks/useValue.ts"],"sourcesContent":["import { useMemo } from 'react';\n\nexport function useValue<T>(object: T): T {\n  return useMemo(() => object, [object]);\n}\n"],"names":[],"mappings":";AAEO,SAAS,SAAY,QAAc;AACxC,SAAO,QAAQ,MAAM,QAAQ,CAAC,MAAM,CAAC;AACvC;"}

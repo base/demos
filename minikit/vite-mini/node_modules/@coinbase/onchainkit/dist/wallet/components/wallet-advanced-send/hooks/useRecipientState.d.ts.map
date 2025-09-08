@@ -1,0 +1,1 @@
+{"version":3,"file":"useRecipientState.d.ts","sourceRoot":"","sources":["../../../../../src/wallet/components/wallet-advanced-send/hooks/useRecipientState.tsx"],"names":[],"mappings":"AAIA,OAAO,EAAE,cAAc,EAAE,MAAM,UAAU,CAAC;AAG1C,wBAAgB,iBAAiB;;kCAQkB,MAAM;oCAOJ,MAAM;iCAsBrC,OAAO,CAAC,cAAc,EAAE;QAAE,KAAK,EAAE,UAAU,CAAA;KAAE,CAAC;;EAsDnE"}

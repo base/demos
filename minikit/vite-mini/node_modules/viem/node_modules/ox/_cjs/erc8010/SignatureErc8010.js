@@ -1,0 +1,93 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.InvalidWrappedSignatureError = exports.magicBytes = void 0;
+exports.assert = assert;
+exports.from = from;
+exports.unwrap = unwrap;
+exports.wrap = wrap;
+exports.validate = validate;
+const AbiParameters = require("../core/AbiParameters.js");
+const Authorization = require("../core/Authorization.js");
+const Errors = require("../core/Errors.js");
+const Hex = require("../core/Hex.js");
+const Signature = require("../core/Signature.js");
+exports.magicBytes = '0x8010801080108010801080108010801080108010801080108010801080108010';
+function assert(value) {
+    if (typeof value === 'string') {
+        if (Hex.slice(value, -32) !== exports.magicBytes)
+            throw new InvalidWrappedSignatureError(value);
+    }
+    else
+        Signature.assert(value.authorization);
+}
+function from(value) {
+    if (typeof value === 'string')
+        return unwrap(value);
+    return value;
+}
+function unwrap(wrapped) {
+    assert(wrapped);
+    const suffixLength = Hex.toNumber(Hex.slice(wrapped, -64, -32));
+    const suffix = Hex.slice(wrapped, -suffixLength - 64, -64);
+    const signature = Hex.slice(wrapped, 0, -suffixLength - 64);
+    const chainId = Hex.toNumber(Hex.slice(suffix, 0, 32));
+    const delegation = Hex.slice(suffix, 32, 52);
+    const nonce = Hex.toBigInt(Hex.slice(suffix, 52, 84));
+    const yParity = Hex.toNumber(Hex.slice(suffix, 84, 85));
+    const r = Hex.toBigInt(Hex.slice(suffix, 85, 117));
+    const s = Hex.toBigInt(Hex.slice(suffix, 117, 149));
+    const authorization = Authorization.from({
+        address: delegation,
+        chainId,
+        nonce,
+        yParity,
+        r,
+        s,
+    });
+    const data = (() => {
+        try {
+            return Hex.slice(suffix, 149);
+        }
+        catch {
+            return undefined;
+        }
+    })();
+    return { authorization, data, signature };
+}
+function wrap(value) {
+    assert(value);
+    const { data, signature } = value;
+    const authorization = AbiParameters.encodePacked(['uint256', 'address', 'uint256', 'uint8', 'uint256', 'uint256'], [
+        BigInt(value.authorization.chainId),
+        value.authorization.address,
+        BigInt(value.authorization.nonce),
+        value.authorization.yParity,
+        value.authorization.r,
+        value.authorization.s,
+    ]);
+    const suffix = AbiParameters.encodePacked(['bytes', 'bytes'], [authorization, data ?? '0x']);
+    const suffixLength = Hex.fromNumber(Hex.size(suffix), { size: 32 });
+    return Hex.concat(signature, suffix, suffixLength, exports.magicBytes);
+}
+function validate(value) {
+    try {
+        assert(value);
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+class InvalidWrappedSignatureError extends Errors.BaseError {
+    constructor(wrapped) {
+        super(`Value \`${wrapped}\` is an invalid ERC-8010 wrapped signature.`);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'SignatureErc8010.InvalidWrappedSignatureError'
+        });
+    }
+}
+exports.InvalidWrappedSignatureError = InvalidWrappedSignatureError;
+//# sourceMappingURL=SignatureErc8010.js.map

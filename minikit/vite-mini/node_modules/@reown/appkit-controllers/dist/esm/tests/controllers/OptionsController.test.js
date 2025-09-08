@@ -1,0 +1,84 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { OptionsController } from '../../exports/index.js';
+import { ConstantsUtil } from '../../src/utils/ConstantsUtil.js';
+import { OptionsUtil } from '../../src/utils/OptionsUtil.js';
+vi.mock('../../src/utils/OptionsUtil.js', () => ({
+    OptionsUtil: {
+        filterSocialsByPlatform: vi.fn(socials => socials)
+    }
+}));
+// -- Tests --------------------------------------------------------------------
+describe('OptionsController', () => {
+    beforeEach(() => {
+        vi.mocked(OptionsUtil.filterSocialsByPlatform).mockClear();
+        OptionsController.state.remoteFeatures = {};
+    });
+    it('should have valid default state', () => {
+        expect(OptionsController.state).toEqual({
+            features: ConstantsUtil.DEFAULT_FEATURES,
+            remoteFeatures: {},
+            projectId: '',
+            sdkType: 'appkit',
+            sdkVersion: 'html-wagmi-undefined',
+            defaultAccountTypes: {
+                bip122: 'payment',
+                eip155: 'smartAccount',
+                polkadot: 'eoa',
+                solana: 'eoa'
+            },
+            enableNetworkSwitch: true,
+            experimental_preferUniversalLinks: false
+        });
+    });
+    it('should update state correctly on setProjectId()', () => {
+        OptionsController.setProjectId('123');
+        expect(OptionsController.state.projectId).toEqual('123');
+    });
+    it('should update state correctly on setSdkVersion()', () => {
+        OptionsController.setSdkVersion('react-wagmi-3.0.0');
+        expect(OptionsController.state.sdkVersion).toEqual('react-wagmi-3.0.0');
+    });
+    it('should update state correctly on setAllowUnsupportedChain()', () => {
+        OptionsController.setAllowUnsupportedChain(true);
+        expect(OptionsController.state.allowUnsupportedChain).toEqual(true);
+    });
+    it('should set defaultAccountType partially and not change if undefined is provided', () => {
+        OptionsController.setDefaultAccountTypes({ eip155: 'eoa', bip122: undefined });
+        expect(OptionsController.state.defaultAccountTypes).toEqual({
+            bip122: 'payment',
+            eip155: 'eoa',
+            polkadot: 'eoa',
+            solana: 'eoa'
+        });
+    });
+    it('should update state correctly on setFeatures()', () => {
+        OptionsController.setFeatures({
+            analytics: true
+        });
+        expect(OptionsController.state.features).toEqual({
+            ...OptionsController.state.features,
+            analytics: true
+        });
+    });
+    it('should do nothing if remoteFeatures is undefined', () => {
+        const initialState = { ...OptionsController.state };
+        OptionsController.setRemoteFeatures(undefined);
+        expect(OptionsController.state).toEqual(initialState);
+        expect(OptionsUtil.filterSocialsByPlatform).not.toHaveBeenCalled();
+    });
+    it('should set remoteFeatures and call OptionsUtil.filterSocialsByPlatform if socials data exists', () => {
+        vi.clearAllMocks();
+        const socialProviders = ['google'];
+        const filteredSocialProviders = ['google'];
+        vi.mocked(OptionsUtil.filterSocialsByPlatform).mockReturnValue(filteredSocialProviders);
+        const remoteFeatures = {
+            socials: socialProviders,
+            activity: true
+        };
+        OptionsController.setRemoteFeatures(remoteFeatures);
+        expect(OptionsController.state.remoteFeatures?.socials).toEqual(filteredSocialProviders);
+        expect(OptionsController.state.remoteFeatures?.activity).toBe(true);
+        expect(OptionsUtil.filterSocialsByPlatform).toHaveBeenCalledWith(socialProviders);
+    });
+});
+//# sourceMappingURL=OptionsController.test.js.map

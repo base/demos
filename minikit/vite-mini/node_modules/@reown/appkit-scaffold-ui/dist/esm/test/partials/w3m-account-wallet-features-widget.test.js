@@ -1,0 +1,401 @@
+import { elementUpdated, fixture } from '@open-wc/testing';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { html } from 'lit';
+import { ConstantsUtil as CommonConstantsUtil } from '@reown/appkit-common';
+import { AccountController, ChainController, CoreHelperUtil, OptionsController, RouterController } from '@reown/appkit-controllers';
+import { W3mAccountWalletFeaturesWidget } from '../../src/partials/w3m-account-wallet-features-widget';
+import { HelpersUtil } from '../utils/HelpersUtil';
+const WALLET_FEATURE_WIDGET_TEST_ID = 'w3m-account-wallet-features-widget';
+const MOCK_ADDRESS = '0xcd2a3d9f938e13cd947ec05abc7fe734df8dd826';
+const PROFILE_BUTTON = 'w3m-profile-button';
+const SERVICE_UNAVAILABLE_MESSAGE = 'Service Unavailable';
+const ACCOUNT = {
+    namespace: 'eip155',
+    address: '0x123',
+    type: 'eoa'
+};
+describe('W3mAccountWalletFeaturesWidget', () => {
+    beforeAll(() => {
+        vi.spyOn(CoreHelperUtil, 'isMobile').mockReturnValue(false);
+    });
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+    it('it should not return any components if address is not provided in AccountController', () => {
+        vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+            ...AccountController.state,
+            address: undefined
+        });
+        expect(() => fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`)).rejects.toThrow('w3m-account-view: No account provided');
+    });
+    it('it should return all components if address is provided in AccountsController', async () => {
+        vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+            ...AccountController.state,
+            address: MOCK_ADDRESS
+        });
+        const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+        element.requestUpdate();
+        await elementUpdated(element);
+        expect(HelpersUtil.getByTestId(element, WALLET_FEATURE_WIDGET_TEST_ID)).not.toBeNull();
+    });
+    it('should redirect to AccountSettings view if has one account', async () => {
+        vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+            ...AccountController.state,
+            address: ACCOUNT.address
+        });
+        vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+            ...AccountController.state,
+            address: ACCOUNT.address,
+            allAccounts: [ACCOUNT]
+        });
+        const pushSpy = vi.spyOn(RouterController, 'push');
+        const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+        const profileButton = HelpersUtil.getByTestId(element, PROFILE_BUTTON);
+        expect(profileButton).not.toBeNull();
+        const button = HelpersUtil.querySelect(profileButton, 'button');
+        button.click();
+        expect(pushSpy).toHaveBeenCalledWith('AccountSettings');
+    });
+    it('should show tabs for eip155 namespace', async () => {
+        vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+            ...AccountController.state,
+            address: MOCK_ADDRESS
+        });
+        vi.spyOn(ChainController, 'state', 'get').mockReturnValue({
+            ...ChainController.state,
+            activeChain: CommonConstantsUtil.CHAIN.EVM
+        });
+        const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+        await elementUpdated(element);
+        const tabs = HelpersUtil.querySelect(element, 'wui-tabs');
+        expect(tabs).not.toBeNull();
+    });
+    it('should not show tabs for solana namespace', async () => {
+        vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+            ...AccountController.state,
+            address: MOCK_ADDRESS
+        });
+        vi.spyOn(ChainController, 'state', 'get').mockReturnValue({
+            ...ChainController.state,
+            activeChain: CommonConstantsUtil.CHAIN.SOLANA
+        });
+        const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+        await elementUpdated(element);
+        const tabs = HelpersUtil.querySelect(element, 'wui-tabs');
+        expect(tabs).toBeNull();
+    });
+    it('should redirect to Profile view if has more than one account', async () => {
+        vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+            ...AccountController.state,
+            address: ACCOUNT.address
+        });
+        vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+            ...AccountController.state,
+            address: ACCOUNT.address,
+            allAccounts: [ACCOUNT, ACCOUNT]
+        });
+        const pushSpy = vi.spyOn(RouterController, 'push');
+        const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+        const profileButton = HelpersUtil.getByTestId(element, PROFILE_BUTTON);
+        expect(profileButton).not.toBeNull();
+        const button = HelpersUtil.querySelect(profileButton, 'button');
+        button.click();
+        expect(pushSpy).toHaveBeenCalledWith('Profile');
+    });
+    it('should clearInterval when fetchTokenBalance fails after 10 seconds', async () => {
+        vi.useFakeTimers();
+        vi.spyOn(global, 'setInterval');
+        vi.spyOn(global, 'clearInterval');
+        vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+            ...AccountController.state,
+            address: ACCOUNT.address
+        });
+        const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+        expect(setInterval).toHaveBeenCalled();
+        const response = new Response(SERVICE_UNAVAILABLE_MESSAGE, {
+            status: CommonConstantsUtil.HTTP_STATUS_CODES.SERVICE_UNAVAILABLE
+        });
+        const error = new Error(SERVICE_UNAVAILABLE_MESSAGE, { cause: response });
+        vi.spyOn(AccountController, 'fetchTokenBalance').mockImplementation(async (callback) => {
+            callback?.(error);
+            return [];
+        });
+        vi.advanceTimersByTime(10_000);
+        expect(clearInterval).toHaveBeenCalledWith(element.watchTokenBalance);
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+    });
+});
+describe('wallet features visibility', () => {
+    beforeAll(() => {
+        vi.spyOn(CoreHelperUtil, 'isMobile').mockReturnValue(false);
+    });
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+    describe('evm wallet features', () => {
+        beforeEach(() => {
+            vi.spyOn(ChainController, 'state', 'get').mockReturnValue({
+                ...ChainController.state,
+                activeChain: CommonConstantsUtil.CHAIN.EVM
+            });
+            vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+                ...AccountController.state,
+                address: MOCK_ADDRESS
+            });
+        });
+        it('should show all features when enabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: true,
+                    send: true
+                },
+                remoteFeatures: {
+                    onramp: ['coinbase'],
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).not.toBeNull();
+        });
+        it('should not show onramp if disabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: true,
+                    send: true
+                },
+                remoteFeatures: {
+                    onramp: false,
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).not.toBeNull();
+        });
+        it('should not show swaps if disabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: true,
+                    send: true
+                },
+                remoteFeatures: {
+                    onramp: ['coinbase'],
+                    swaps: false
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).not.toBeNull();
+        });
+        it('should not show receive if disabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: false,
+                    send: true
+                },
+                remoteFeatures: {
+                    onramp: ['coinbase'],
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).not.toBeNull();
+        });
+        it('should not show send if disabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: true,
+                    send: false
+                },
+                remoteFeatures: {
+                    onramp: ['coinbase'],
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).toBeNull();
+        });
+    });
+    describe('solana wallet features', () => {
+        beforeEach(() => {
+            vi.spyOn(ChainController, 'state', 'get').mockReturnValue({
+                ...ChainController.state,
+                activeChain: CommonConstantsUtil.CHAIN.SOLANA
+            });
+            vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+                ...AccountController.state,
+                address: MOCK_ADDRESS
+            });
+        });
+        it('should show all features but swaps when enabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: true,
+                    send: true
+                },
+                remoteFeatures: {
+                    onramp: ['coinbase'],
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).not.toBeNull();
+        });
+        it('should not show onramp if disabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: true,
+                    send: true
+                },
+                remoteFeatures: {
+                    onramp: false,
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).not.toBeNull();
+        });
+        it('should not show receive if disabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: false,
+                    send: true
+                },
+                remoteFeatures: {
+                    onramp: ['coinbase'],
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).not.toBeNull();
+        });
+        it('should not show send if disabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: true,
+                    send: false
+                },
+                remoteFeatures: {
+                    onramp: ['coinbase'],
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).toBeNull();
+        });
+    });
+    describe('bitcoin wallet features', () => {
+        beforeEach(() => {
+            vi.spyOn(ChainController, 'state', 'get').mockReturnValue({
+                ...ChainController.state,
+                activeChain: CommonConstantsUtil.CHAIN.BITCOIN
+            });
+            vi.spyOn(AccountController, 'state', 'get').mockReturnValue({
+                ...AccountController.state,
+                address: 'bc1qa1234567890'
+            });
+        });
+        it('should only show onramp and receive when enabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: true,
+                    send: true
+                },
+                remoteFeatures: {
+                    onramp: ['coinbase'],
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).toBeNull();
+        });
+        it('should not show onramp if disabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: true,
+                    send: true
+                },
+                remoteFeatures: {
+                    onramp: false,
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).toBeNull();
+        });
+        it('should not show receive if disabled', async () => {
+            vi.spyOn(OptionsController, 'state', 'get').mockReturnValue({
+                ...OptionsController.state,
+                features: {
+                    receive: false,
+                    send: true
+                },
+                remoteFeatures: {
+                    onramp: ['coinbase'],
+                    swaps: ['1inch']
+                }
+            });
+            const element = await fixture(html `<w3m-account-wallet-features-widget></w3m-account-wallet-features-widget>`);
+            await elementUpdated(element);
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-onramp-button')).not.toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-swaps-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-receive-button')).toBeNull();
+            expect(HelpersUtil.getByTestId(element, 'wallet-features-send-button')).toBeNull();
+        });
+    });
+});
+//# sourceMappingURL=w3m-account-wallet-features-widget.test.js.map

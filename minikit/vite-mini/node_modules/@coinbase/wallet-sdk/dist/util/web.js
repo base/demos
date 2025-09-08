@@ -1,0 +1,91 @@
+import { standardErrors } from '../core/error/errors.js';
+import { logSnackbarActionClicked, logSnackbarShown } from '../core/telemetry/events/snackbar.js';
+import { RETRY_SVG_PATH } from '../sign/walletlink/relay/ui/WalletLinkRelayUI.js';
+import { Snackbar } from '../sign/walletlink/relay/ui/components/Snackbar/Snackbar.js';
+import { NAME, VERSION } from '../sdk-info.js';
+import { getCrossOriginOpenerPolicy } from './checkCrossOriginOpenerPolicy.js';
+const POPUP_WIDTH = 420;
+const POPUP_HEIGHT = 700;
+const RETRY_BUTTON = {
+    isRed: false,
+    info: 'Retry',
+    svgWidth: '10',
+    svgHeight: '11',
+    path: RETRY_SVG_PATH,
+    defaultFillRule: 'evenodd',
+    defaultClipRule: 'evenodd',
+};
+const POPUP_BLOCKED_MESSAGE = 'Popup was blocked. Try again.';
+let snackbar = null;
+export function openPopup(url) {
+    const left = (window.innerWidth - POPUP_WIDTH) / 2 + window.screenX;
+    const top = (window.innerHeight - POPUP_HEIGHT) / 2 + window.screenY;
+    appendAppInfoQueryParams(url);
+    function tryOpenPopup() {
+        const popupId = `wallet_${crypto.randomUUID()}`;
+        const popup = window.open(url, popupId, `width=${POPUP_WIDTH}, height=${POPUP_HEIGHT}, left=${left}, top=${top}`);
+        popup === null || popup === void 0 ? void 0 : popup.focus();
+        if (!popup) {
+            return null;
+        }
+        return popup;
+    }
+    let popup = tryOpenPopup();
+    // If the popup was blocked, show a snackbar with a retry button
+    if (!popup) {
+        const sb = initSnackbar();
+        return new Promise((resolve, reject) => {
+            logSnackbarShown({ snackbarContext: 'popup_blocked' });
+            sb.presentItem({
+                autoExpand: true,
+                message: POPUP_BLOCKED_MESSAGE,
+                menuItems: [
+                    Object.assign(Object.assign({}, RETRY_BUTTON), { onClick: () => {
+                            logSnackbarActionClicked({
+                                snackbarContext: 'popup_blocked',
+                                snackbarAction: 'confirm',
+                            });
+                            popup = tryOpenPopup();
+                            if (popup) {
+                                resolve(popup);
+                            }
+                            else {
+                                reject(standardErrors.rpc.internal('Popup window was blocked'));
+                            }
+                            sb.clear();
+                        } }),
+                ],
+            });
+        });
+    }
+    return Promise.resolve(popup);
+}
+export function closePopup(popup) {
+    if (popup && !popup.closed) {
+        popup.close();
+    }
+}
+function appendAppInfoQueryParams(url) {
+    const params = {
+        sdkName: NAME,
+        sdkVersion: VERSION,
+        origin: window.location.origin,
+        coop: getCrossOriginOpenerPolicy(),
+    };
+    for (const [key, value] of Object.entries(params)) {
+        if (!url.searchParams.has(key)) {
+            url.searchParams.append(key, value.toString());
+        }
+    }
+}
+export function initSnackbar() {
+    if (!snackbar) {
+        const root = document.createElement('div');
+        root.className = '-cbwsdk-css-reset';
+        document.body.appendChild(root);
+        snackbar = new Snackbar();
+        snackbar.attach(root);
+    }
+    return snackbar;
+}
+//# sourceMappingURL=web.js.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"WalletIsland.d.ts","sourceRoot":"","sources":["../../../src/wallet/components/WalletIsland.tsx"],"names":[],"mappings":"AAaA,wBAAgB,YAAY,CAAC,EAC3B,gBAAwD,EACxD,WAAW,GACZ,EAAE;IACD,gBAAgB,CAAC,EAAE;QAAE,CAAC,EAAE,MAAM,CAAC;QAAC,CAAC,EAAE,MAAM,CAAA;KAAE,CAAC;IAC5C,WAAW,CAAC,EAAE,OAAO,CAAC;CACvB,2CAqBA"}

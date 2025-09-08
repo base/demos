@@ -1,0 +1,37 @@
+import { LifecycleStatusUpdate } from '../../internal/types';
+import { AmountInputType, FundButtonStateReact, FundCardProviderReact, LifecycleStatus, OnrampError, PaymentMethod, PresetAmountInputs } from '../types';
+type FundCardContextType = {
+    asset: string;
+    currency: string;
+    selectedPaymentMethod?: PaymentMethod;
+    setSelectedPaymentMethod: (paymentMethod: PaymentMethod) => void;
+    selectedInputType: AmountInputType;
+    setSelectedInputType: (inputType: AmountInputType) => void;
+    fundAmountFiat: string;
+    setFundAmountFiat: (amount: string) => void;
+    fundAmountCrypto: string;
+    setFundAmountCrypto: (amount: string) => void;
+    exchangeRate: number;
+    setExchangeRate: (exchangeRate: number) => void;
+    exchangeRateLoading: boolean;
+    setExchangeRateLoading: (loading: boolean) => void;
+    submitButtonState: FundButtonStateReact;
+    setSubmitButtonState: (state: FundButtonStateReact) => void;
+    paymentMethods: PaymentMethod[];
+    setPaymentMethods: (paymentMethods: PaymentMethod[]) => void;
+    isPaymentMethodsLoading: boolean;
+    setIsPaymentMethodsLoading: (loading: boolean) => void;
+    headerText?: string;
+    buttonText?: string;
+    country: string;
+    subdivision?: string;
+    inputType?: 'fiat' | 'crypto';
+    lifecycleStatus: LifecycleStatus;
+    presetAmountInputs?: PresetAmountInputs;
+    updateLifecycleStatus: (newStatus: LifecycleStatusUpdate<LifecycleStatus>) => void;
+    onError?: (error: OnrampError) => void;
+};
+export declare function FundCardProvider({ children, asset, currency, headerText, buttonText, country, subdivision, inputType, onError, onStatus, onSuccess, presetAmountInputs, }: FundCardProviderReact): import("react/jsx-runtime").JSX.Element;
+export declare function useFundContext(): FundCardContextType;
+export {};
+//# sourceMappingURL=FundCardProvider.d.ts.map

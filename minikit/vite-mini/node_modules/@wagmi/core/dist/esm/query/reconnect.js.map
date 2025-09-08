@@ -1,0 +1,1 @@
+{"version":3,"file":"reconnect.js","sourceRoot":"","sources":["../../../src/query/reconnect.ts"],"names":[],"mappings":"AAEA,OAAO,EAIL,SAAS,GACV,MAAM,yBAAyB,CAAA;AAKhC,MAAM,UAAU,wBAAwB,CAAC,MAAc;IACrD,OAAO;QACL,UAAU,CAAC,SAAS;YAClB,OAAO,SAAS,CAAC,MAAM,EAAE,SAAS,CAAC,CAAA;QACrC,CAAC;QACD,WAAW,EAAE,CAAC,WAAW,CAAC;KAK3B,CAAA;AACH,CAAC"}
