@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { SignInWithBaseButton } from '@/components/SignInWithBase'
 import { ChatInterface } from '@/components/ChatInterface'
 import { SpendPermissionSetup } from '@/components/SpendPermissionSetup'
+import { SpendPermissionManager } from '@/components/SpendPermissionManager'
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -108,8 +109,8 @@ export default function Home() {
                 <div className="w-12 h-12 bg-base-blue rounded-lg flex items-center justify-center mb-4 mx-auto">
                   <span className="text-white font-bold">2</span>
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-2">Set Limits</h3>
-                <p className="text-sm text-gray-600">Configure your daily spending limits ($0.10-$0.20)</p>
+                <h3 className="font-semibold text-gray-900 mb-2">Set Permissions</h3>
+                <p className="text-sm text-gray-600">Configure your daily spend permissions ($1-$2)</p>
               </div>
               
               <div className="bg-white rounded-lg p-6 shadow-sm">
@@ -137,8 +138,23 @@ export default function Home() {
             />
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 chat-container overflow-hidden">
-            <ChatInterface isAuthenticated={isAuthenticated} userAddress={userAddress} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Chat Interface - Left Side (2/3 width) */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 chat-container overflow-hidden h-[600px]">
+                <ChatInterface isAuthenticated={isAuthenticated} userAddress={userAddress} />
+              </div>
+            </div>
+            
+            {/* Spend Permission Manager - Right Side (1/3 width) */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden h-[600px]">
+                <SpendPermissionManager 
+                  isAuthenticated={isAuthenticated}
+                  userAddress={userAddress}
+                />
+              </div>
+            </div>
           </div>
         )}
 

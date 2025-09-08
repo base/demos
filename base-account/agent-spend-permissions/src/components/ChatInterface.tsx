@@ -114,7 +114,7 @@ export function ChatInterface({ isAuthenticated, userAddress }: ChatInterfacePro
       const storedPermission = localStorage.getItem('spendPermission')
       console.log('Stored permission:', storedPermission)
       if (!storedPermission) {
-        throw new Error('No spend permission found. Please set up spending limits first.')
+        throw new Error('No spend permission found. Please set up spend permissions first.')
       }
 
       const permission = JSON.parse(storedPermission)
