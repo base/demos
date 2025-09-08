@@ -29,12 +29,12 @@ export const SignInWithBaseButton = ({
       
       console.log('Using nonce:', nonce);
 
-      const switchChainResponse = await provider.request({
+      /*const switchChainResponse = await provider.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: '0x2105' }],
       })
 
-      console.log('Switch chain response:', switchChainResponse);
+      console.log('Switch chain response:', switchChainResponse);*/
 
       // 2 — Connect and get address
       const connectResponse = await provider.request({
