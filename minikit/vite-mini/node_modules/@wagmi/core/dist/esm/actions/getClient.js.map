@@ -1,1 +1,0 @@
-{"version":3,"file":"getClient.js","sourceRoot":"","sources":["../../../src/actions/getClient.ts"],"names":[],"mappings":"AAuCA,MAAM,UAAU,SAAS,CAIvB,MAAc,EACd,aAAmD,EAAE;IAErD,IAAI,CAAC;QACH,OAAO,MAAM,CAAC,SAAS,CAAC,UAAU,CAAyC,CAAA;IAC7E,CAAC;IAAC,MAAM,CAAC;QACP,OAAO,SAAkB,CAAA;IAC3B,CAAC;AACH,CAAC"}

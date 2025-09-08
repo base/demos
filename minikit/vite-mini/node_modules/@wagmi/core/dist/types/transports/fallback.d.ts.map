@@ -1,1 +1,0 @@
-{"version":3,"file":"fallback.d.ts","sourceRoot":"","sources":["../../../src/transports/fallback.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,QAAQ,IAAI,aAAa,EAAE,MAAM,MAAM,CAAA;AAEhD,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,oBAAoB,CAAA;AAEnD,wBAAgB,QAAQ,CACtB,UAAU,EAAE,SAAS,EAAE,EACvB,MAAM,CAAC,EAAE,UAAU,CAAC,OAAO,aAAa,CAAC,CAAC,CAAC,CAAC,iDAG7C"}

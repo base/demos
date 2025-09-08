@@ -1,1 +1,0 @@
-{"version":3,"file":"NamesUtil.js","sourceRoot":"","sources":["../../../../src/utils/NamesUtil.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,aAAa,EAAE,MAAM,oBAAoB,CAAA;AAElD,MAAM,UAAU,WAAW,CAAC,KAAa;IACvC,OAAO,CACL,KAAK,EAAE,QAAQ,CAAC,aAAa,CAAC,qBAAqB,CAAC;QACpD,KAAK,EAAE,QAAQ,CAAC,aAAa,CAAC,cAAc,CAAC,CAC9C,CAAA;AACH,CAAC"}

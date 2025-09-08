@@ -1,1 +1,0 @@
-{"version":3,"file":"watchChainId.js","sourceRoot":"","sources":["../../../src/actions/watchChainId.ts"],"names":[],"mappings":"AAYA,qDAAqD;AACrD,MAAM,UAAU,YAAY,CAC1B,MAAc,EACd,UAA0C;IAE1C,MAAM,EAAE,QAAQ,EAAE,GAAG,UAAU,CAAA;IAC/B,OAAO,MAAM,CAAC,SAAS,CAAC,CAAC,KAAK,EAAE,EAAE,CAAC,KAAK,CAAC,OAAO,EAAE,QAAQ,CAAC,CAAA;AAC7D,CAAC"}

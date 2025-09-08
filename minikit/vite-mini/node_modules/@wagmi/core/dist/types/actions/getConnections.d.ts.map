@@ -1,1 +1,0 @@
-{"version":3,"file":"getConnections.d.ts","sourceRoot":"","sources":["../../../src/actions/getConnections.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,MAAM,EAAE,UAAU,EAAE,MAAM,oBAAoB,CAAA;AAC5D,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,mBAAmB,CAAA;AAGhD,MAAM,MAAM,wBAAwB,GAAG,OAAO,CAAC,UAAU,CAAC,EAAE,CAAA;AAI5D,uDAAuD;AACvD,wBAAgB,cAAc,CAAC,MAAM,EAAE,MAAM,GAAG,wBAAwB,CAMvE"}

@@ -1,2 +1,0 @@
-export declare function useCorners(size: number, matrixLength: number, backgroundColor: string, fillColor: string, uid: string): import("react/jsx-runtime").JSX.Element;
-//# sourceMappingURL=useCorners.d.ts.map

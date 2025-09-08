@@ -1,3 +1,0 @@
-export declare const CDP_GET_PORTFOLIO_TOKEN_BALANCES = "cdp_getTokensForAddresses";
-export declare const CDP_GET_PRICE_QUOTE = "cdp_getPriceQuote";
-//# sourceMappingURL=wallet.d.ts.map

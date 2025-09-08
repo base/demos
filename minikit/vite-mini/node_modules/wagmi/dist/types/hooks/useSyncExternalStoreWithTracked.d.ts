@@ -1,2 +1,0 @@
-export declare function useSyncExternalStoreWithTracked<snapshot extends selection, selection = snapshot>(subscribe: (onStoreChange: () => void) => () => void, getSnapshot: () => snapshot, getServerSnapshot?: undefined | null | (() => snapshot), isEqual?: (a: selection, b: selection) => boolean): snapshot;
-//# sourceMappingURL=useSyncExternalStoreWithTracked.d.ts.map

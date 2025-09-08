@@ -1,1 +1,0 @@
-{"version":3,"file":"RPCRequest.d.ts","sourceRoot":"","sources":["../../../src/core/message/RPCRequest.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,gBAAgB,EAAE,MAAM,6BAA6B,CAAC;AAE/D,MAAM,MAAM,UAAU,GAAG;IACvB,MAAM,EAAE,gBAAgB,CAAC;IACzB,OAAO,EAAE,MAAM,CAAC;CACjB,CAAC"}

@@ -1,1 +1,0 @@
-{"version":3,"file":"switchAccount.js","sourceRoot":"","sources":["../../../src/query/switchAccount.ts"],"names":[],"mappings":"AAEA,OAAO,EAIL,aAAa,GACd,MAAM,6BAA6B,CAAA;AAKpC,MAAM,UAAU,4BAA4B,CAC1C,MAAc;IAEd,OAAO;QACL,UAAU,CAAC,SAAS;YAClB,OAAO,aAAa,CAAC,MAAM,EAAE,SAAS,CAAC,CAAA;QACzC,CAAC;QACD,WAAW,EAAE,CAAC,eAAe,CAAC;KAK/B,CAAA;AACH,CAAC"}

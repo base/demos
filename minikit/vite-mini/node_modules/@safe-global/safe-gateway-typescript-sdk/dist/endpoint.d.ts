@@ -1,5 +1,0 @@
-import type { DeleteEndpoint, GetEndpoint, paths, PostEndpoint, PutEndpoint } from './types/api';
-export declare function postEndpoint<T extends keyof paths>(baseUrl: string, path: T, params?: paths[T] extends PostEndpoint ? paths[T]['post']['parameters'] : never): Promise<paths[T] extends PostEndpoint ? paths[T]['post']['responses'][200]['schema'] : never>;
-export declare function putEndpoint<T extends keyof paths>(baseUrl: string, path: T, params?: paths[T] extends PutEndpoint ? paths[T]['put']['parameters'] : never): Promise<paths[T] extends PutEndpoint ? paths[T]['put']['responses'][200]['schema'] : never>;
-export declare function deleteEndpoint<T extends keyof paths>(baseUrl: string, path: T, params?: paths[T] extends DeleteEndpoint ? paths[T]['delete']['parameters'] : never): Promise<paths[T] extends DeleteEndpoint ? paths[T]['delete']['responses'][200]['schema'] : never>;
-export declare function getEndpoint<T extends keyof paths>(baseUrl: string, path: T, params?: paths[T] extends GetEndpoint ? paths[T]['get']['parameters'] : never, rawUrl?: string): Promise<paths[T] extends GetEndpoint ? paths[T]['get']['responses'][200]['schema'] : never>;

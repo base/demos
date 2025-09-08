@@ -1,1 +1,0 @@
-{"version":3,"file":"disconnect.js","sourceRoot":"","sources":["../../../src/query/disconnect.ts"],"names":[],"mappings":"AAEA,OAAO,EAIL,UAAU,GACX,MAAM,0BAA0B,CAAA;AAIjC,MAAM,UAAU,yBAAyB,CACvC,MAAc;IAEd,OAAO;QACL,UAAU,CAAC,SAAS;YAClB,OAAO,UAAU,CAAC,MAAM,EAAE,SAAS,CAAC,CAAA;QACtC,CAAC;QACD,WAAW,EAAE,CAAC,YAAY,CAAC;KAK5B,CAAA;AACH,CAAC"}
