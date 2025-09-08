@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cdpClient = getCdpClient();
+    console.log('🔧 Sending user operation with spend calls:', spendCalls)
     await cdpClient.evm.sendUserOperation({
       smartAccount: serverWallet.smartAccount,
       network: "base",

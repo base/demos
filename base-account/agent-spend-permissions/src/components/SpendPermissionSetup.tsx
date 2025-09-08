@@ -13,10 +13,9 @@ export function SpendPermissionSetup({
   userAddress,
   onPermissionGranted,
 }: SpendPermissionSetupProps) {
-  const [dailyLimit, setDailyLimit] = useState(0.2);
+  const [dailyLimit, setDailyLimit] = useState(2);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-
 
   const handleSetupPermission = async () => {
     setIsLoading(true);
@@ -58,7 +57,7 @@ export function SpendPermissionSetup({
         allowance: allowanceUSDC,
         periodInDays: 1, // Daily limit
         provider: createBaseAccountSDK({
-          appName: "Agent Spend Permissions",
+          appName: "Zora Creator Coins Agent",
         }).getProvider(),
       });
 
@@ -81,13 +80,14 @@ export function SpendPermissionSetup({
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">
-        Set Up Spending Permissions
+        Set Up Spend Permissions
       </h3>
 
       <p className="text-gray-600 text-sm mb-6">
-        To use the Zora Coins Agent, you need to grant spending permissions. This
+        To use the Zora Coins Agent, you need to grant spend permissions. This
         allows the agent to purchase coins on your behalf using your USDC.
       </p>
+
 
       <div className="space-y-4">
         <div>
@@ -95,23 +95,23 @@ export function SpendPermissionSetup({
             htmlFor="dailyLimit"
             className="block text-sm font-medium text-gray-700"
           >
-            Daily Spending Limit (USD)
+            Daily Spend Permission (USD)
           </label>
           <div className="mt-1">
             <input
               type="range"
               id="dailyLimit"
-              min="0.1"
-              max="0.2"
-              step="0.01"
+              min="1"
+              max="2"
+              step="0.1"
               value={dailyLimit}
               onChange={(e) => setDailyLimit(Number(e.target.value))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-1">
-              <span>$0.10</span>
+              <span>$1.00</span>
               <span className="font-medium text-base-blue">${dailyLimit.toFixed(2)}</span>
-              <span>$0.20</span>
+              <span>$2.00</span>
             </div>
           </div>
         </div>
@@ -129,13 +129,13 @@ export function SpendPermissionSetup({
         >
           {isLoading
             ? "Setting up..."
-            : `Grant $${dailyLimit.toFixed(2)}/day Spending Permission`}
+            : `Grant $${dailyLimit.toFixed(2)}/day Spend Permission`}
         </button>
       </div>
 
       <div className="mt-4 text-xs text-gray-500">
         <p>
-          💡 This creates a secure spending permission that allows the agent to
+          💡 This creates a secure spend permission that allows the agent to
           spend up to ${dailyLimit.toFixed(2)} per day from your wallet to buy Zora coins.
           Gas fees are sponsored automatically.
         </p>
