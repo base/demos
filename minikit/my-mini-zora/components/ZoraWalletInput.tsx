@@ -46,6 +46,11 @@ export function ZoraWalletInput({ displayName }: { displayName: string }  ) {
         return
       }
 
+      console.log('🎨 [ZORA-INPUT] Received tokens from API:');
+      data.tokens.forEach((token, index) => {
+        console.log(`  ${index + 1}. ${token.name}: ${token.imageUrl}`);
+      });
+
       setTokens(data.tokens)
       setProfileData({
         displayName: data.displayName,
@@ -71,7 +76,7 @@ export function ZoraWalletInput({ displayName }: { displayName: string }  ) {
     return (
       <div className="w-full bg-black">
         <Collage selectedToken={selectedToken} setSelectedToken={setSelectedToken} tokens={tokens} displayName={profileData.displayName || ''} />
-        <FooterButtons onReset={handleReset} displayName={profileData.displayName || ''} />
+        <FooterButtons onReset={handleReset} displayName={profileData.displayName || ''} tokens={tokens} />
       </div>
     )
   }

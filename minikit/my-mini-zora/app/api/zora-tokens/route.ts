@@ -50,16 +50,34 @@ export async function GET(req: NextRequest) {
       )
       .slice(0, 5)
 
-    const tokens = topTokens.map(({ coin, balance }) => ({
-      address: coin?.address || '',
-      name: coin?.name || 'Unknown Token',
-      symbol: coin?.symbol || '???',
-      imageUrl: coin?.mediaContent?.previewImage || '/placeholder.svg',
-      balance,
-    }))
+    const tokens = topTokens.map(({ coin, balance }) => {
+      // Extract the medium-quality image URL from the previewImage object
+      const previewImageObj = coin?.mediaContent?.previewImage;
+      const originalImageUrl = previewImageObj?.medium || previewImageObj?.small || '/placeholder.svg';
+      
+      // Debug: Log the extraction process
+      console.log('🔗 [ZORA-API] Token:', coin?.name);
+      console.log('  📋 previewImage object:', JSON.stringify(previewImageObj, null, 2));
+      console.log('  🖼️ Extracted URL (medium):', previewImageObj?.medium);
+      console.log('  🖼️ Final imageUrl:', originalImageUrl);
+      
+      return {
+        address: coin?.address || '',
+        name: coin?.name || 'Unknown Token',
+        symbol: coin?.symbol || '???',
+        imageUrl: originalImageUrl,
+        balance,
+      };
+    })
 
     // Include profile image if available
     const profileImage = profileData?.profile?.avatar?.medium || null
+
+    console.log('✅ [ZORA-API] Returning', tokens.length, 'tokens for user:', displayName);
+    console.log('📋 [ZORA-API] Summary of all image URLs:');
+    tokens.forEach((token, index) => {
+      console.log(`  ${index + 1}. ${token.name}: ${token.imageUrl}`);
+    });
 
     return NextResponse.json({
       tokens,
@@ -81,10 +99,7 @@ export type ZoraToken = {
   address: string
   name: string
   symbol: string
-  imageUrl: {
-    medium: string
-    small: string
-  }
+  imageUrl: string
   balance: string
 }
 
