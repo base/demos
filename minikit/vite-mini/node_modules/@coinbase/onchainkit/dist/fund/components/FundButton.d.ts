@@ -1,0 +1,3 @@
+import { FundButtonReact } from '../types';
+export declare function FundButton({ className, disabled, fundingUrl, hideIcon, hideText, openIn, popupSize, rel, target, text: buttonText, successText: buttonSuccessText, errorText: buttonErrorText, state: buttonState, fiatCurrency, onPopupClose, onClick, }: FundButtonReact): import("react/jsx-runtime").JSX.Element;
+//# sourceMappingURL=FundButton.d.ts.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"encryption-types.cjs","sourceRoot":"","sources":["../src/encryption-types.ts"],"names":[],"mappings":"","sourcesContent":["export type Eip1024EncryptedData = {\n  version: string;\n  nonce: string;\n  ephemPublicKey: string;\n  ciphertext: string;\n};\n"]}

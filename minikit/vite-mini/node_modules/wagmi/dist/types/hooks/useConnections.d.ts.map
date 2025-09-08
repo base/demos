@@ -1,0 +1,1 @@
+{"version":3,"file":"useConnections.d.ts","sourceRoot":"","sources":["../../../src/hooks/useConnections.ts"],"names":[],"mappings":"AAEA,OAAO,EACL,KAAK,wBAAwB,EAG9B,MAAM,aAAa,CAAA;AAGpB,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,wBAAwB,CAAA;AAG7D,MAAM,MAAM,wBAAwB,GAAG,eAAe,CAAA;AAEtD,MAAM,MAAM,wBAAwB,GAAG,wBAAwB,CAAA;AAE/D,sDAAsD;AACtD,wBAAgB,cAAc,CAC5B,UAAU,GAAE,wBAA6B,GACxC,wBAAwB,CAQ1B"}

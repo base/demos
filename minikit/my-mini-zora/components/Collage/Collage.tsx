@@ -25,7 +25,7 @@ export function Collage({ tokens, displayName, selectedToken, setSelectedToken }
           {safeTokens[0] && (
             <CollageImage 
               token={safeTokens[0]}
-              src={safeTokens[0].imageUrl?.medium || '/placeholder.svg'}
+              src={safeTokens[0].imageUrl || '/placeholder.svg'}
               alt={safeTokens[0].name || 'Token 1'}
               className={`${selectedToken?.name === safeTokens[0].name ? 'border-2 border-blue-500' : ''}`}
               onClick={() => safeTokens[0] && setSelectedToken(safeTokens[0])}
@@ -37,7 +37,7 @@ export function Collage({ tokens, displayName, selectedToken, setSelectedToken }
           {safeTokens[1] && (
             <CollageImage 
               token={safeTokens[1]}
-              src={safeTokens[1].imageUrl?.medium || '/placeholder.svg'}
+              src={safeTokens[1].imageUrl || '/placeholder.svg'}
               alt={safeTokens[1].name || 'Token 2'}
               className={`${selectedToken?.name === safeTokens[1].name ? 'border-2 border-blue-500' : ''}`}
               onClick={() => safeTokens[1] && setSelectedToken(safeTokens[1])}
@@ -49,7 +49,7 @@ export function Collage({ tokens, displayName, selectedToken, setSelectedToken }
           {safeTokens[2] && (
             <CollageImage 
               token={safeTokens[2]}
-              src={safeTokens[2].imageUrl?.medium || '/placeholder.svg'}
+              src={safeTokens[2].imageUrl || '/placeholder.svg'}
               alt={safeTokens[2].name || 'Token 3'}
               className={`${selectedToken?.name === safeTokens[2].name ? 'border-2 border-blue-500' : ''}`}
               onClick={() => safeTokens[2] && setSelectedToken(safeTokens[2])}
@@ -62,7 +62,7 @@ export function Collage({ tokens, displayName, selectedToken, setSelectedToken }
           {safeTokens[3] && (
             <CollageImage 
               token={safeTokens[3]}
-              src={safeTokens[3].imageUrl?.medium || '/placeholder.svg'}
+              src={safeTokens[3].imageUrl || '/placeholder.svg'}
               alt={safeTokens[3].name || 'Token 4'}
               className={`${selectedToken?.name === safeTokens[3].name ? 'border-2 border-blue-500' : ''}`}
               onClick={() => safeTokens[3] && setSelectedToken(safeTokens[3])}
@@ -91,7 +91,7 @@ export function Collage({ tokens, displayName, selectedToken, setSelectedToken }
           {safeTokens[4] && (
             <CollageImage 
               token={safeTokens[4]}
-              src={safeTokens[4].imageUrl?.medium || '/placeholder.svg'}
+              src={safeTokens[4].imageUrl || '/placeholder.svg'}
               alt={safeTokens[4].name || 'Token 5'}
               className={`${selectedToken?.name === safeTokens[4].name ? 'border-2 border-blue-500' : ''}`}
               onClick={() => safeTokens[4] && setSelectedToken(safeTokens[4])}

@@ -1,0 +1,1 @@
+{"version":3,"file":"useAttestations.d.ts","sourceRoot":"","sources":["../../../src/identity/hooks/useAttestations.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EACV,WAAW,EACX,eAAe,EACf,eAAe,EAChB,MAAM,kBAAkB,CAAC;AAK1B;;GAEG;AACH,wBAAgB,eAAe,CAC7B,EAAE,OAAO,EAAE,KAAK,EAAE,QAAQ,EAAE,EAAE,eAAe,EAC7C,YAAY,CAAC,EAAE,eAAe,CAAC,WAAW,EAAE,CAAC,GAC5C,WAAW,EAAE,CAaf"}

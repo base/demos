@@ -1,0 +1,1 @@
+{"version":3,"file":"isContract.d.ts","sourceRoot":"","sources":["../../../src/transaction/utils/isContract.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,0BAA0B,EAAE,MAAM,MAAM,CAAC;AACvD,OAAO,KAAK,EAAE,IAAI,EAAE,MAAM,UAAU,CAAC;AAErC,wBAAgB,UAAU,CACxB,WAAW,EAAE,IAAI,GAAG,0BAA0B,GAC7C,WAAW,IAAI,0BAA0B,CAE3C"}

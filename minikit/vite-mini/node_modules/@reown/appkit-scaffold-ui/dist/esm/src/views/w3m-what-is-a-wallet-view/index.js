@@ -1,0 +1,57 @@
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+import { LitElement, html } from 'lit';
+import { EventsController, RouterController } from '@reown/appkit-controllers';
+import { customElement } from '@reown/appkit-ui';
+import '@reown/appkit-ui/wui-button';
+import '@reown/appkit-ui/wui-flex';
+import '@reown/appkit-ui/wui-icon';
+import '../../partials/w3m-help-widget/index.js';
+const data = [
+    {
+        images: ['login', 'profile', 'lock'],
+        title: 'One login for all of web3',
+        text: 'Log in to any app by connecting your wallet. Say goodbye to countless passwords!'
+    },
+    {
+        images: ['defi', 'nft', 'eth'],
+        title: 'A home for your digital assets',
+        text: 'A wallet lets you store, send and receive digital assets like cryptocurrencies and NFTs.'
+    },
+    {
+        images: ['browser', 'noun', 'dao'],
+        title: 'Your gateway to a new web',
+        text: 'With your wallet, you can explore and interact with DeFi, NFTs, DAOs, and much more.'
+    }
+];
+let W3mWhatIsAWalletView = class W3mWhatIsAWalletView extends LitElement {
+    render() {
+        return html `
+      <wui-flex
+        flexDirection="column"
+        .padding=${['xxl', 'xl', 'xl', 'xl']}
+        alignItems="center"
+        gap="xl"
+      >
+        <w3m-help-widget .data=${data}></w3m-help-widget>
+        <wui-button variant="main" size="md" @click=${this.onGetWallet.bind(this)}>
+          <wui-icon color="inherit" slot="iconLeft" name="wallet"></wui-icon>
+          Get a wallet
+        </wui-button>
+      </wui-flex>
+    `;
+    }
+    onGetWallet() {
+        EventsController.sendEvent({ type: 'track', event: 'CLICK_GET_WALLET' });
+        RouterController.push('GetWallet');
+    }
+};
+W3mWhatIsAWalletView = __decorate([
+    customElement('w3m-what-is-a-wallet-view')
+], W3mWhatIsAWalletView);
+export { W3mWhatIsAWalletView };
+//# sourceMappingURL=index.js.map

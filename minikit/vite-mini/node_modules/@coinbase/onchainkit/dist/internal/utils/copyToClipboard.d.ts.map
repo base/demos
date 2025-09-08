@@ -1,0 +1,1 @@
+{"version":3,"file":"copyToClipboard.d.ts","sourceRoot":"","sources":["../../../src/internal/utils/copyToClipboard.ts"],"names":[],"mappings":"AAEA,KAAK,qBAAqB,GAAG;IAC3B,SAAS,EAAE,MAAM,CAAC;IAClB,SAAS,CAAC,EAAE,MAAM,IAAI,CAAC;IACvB,OAAO,CAAC,EAAE,CAAC,KAAK,EAAE,OAAO,KAAK,IAAI,CAAC;CACpC,CAAC;AAEF,wBAAsB,eAAe,CAAC,EACpC,SAAS,EACT,SAAS,EACT,OAAO,GACR,EAAE,qBAAqB,iBAOvB"}

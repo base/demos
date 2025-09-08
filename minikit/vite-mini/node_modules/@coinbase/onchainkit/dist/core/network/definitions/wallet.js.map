@@ -1,0 +1,1 @@
+{"version":3,"file":"wallet.js","sources":["../../../../src/core/network/definitions/wallet.ts"],"sourcesContent":["export const CDP_GET_PORTFOLIO_TOKEN_BALANCES = 'cdp_getTokensForAddresses';\nexport const CDP_GET_PRICE_QUOTE = 'cdp_getPriceQuote';\n"],"names":[],"mappings":"AAAO,MAAM,mCAAmC;AACzC,MAAM,sBAAsB;"}

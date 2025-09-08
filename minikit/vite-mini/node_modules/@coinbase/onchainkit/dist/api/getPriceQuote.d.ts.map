@@ -1,0 +1,1 @@
+{"version":3,"file":"getPriceQuote.d.ts","sourceRoot":"","sources":["../../src/api/getPriceQuote.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,cAAc,EAAE,MAAM,0BAA0B,CAAC;AAI1D,OAAO,KAAK,EAAE,mBAAmB,EAAE,qBAAqB,EAAE,MAAM,SAAS,CAAC;AAE1E;;;;;;;GAOG;AACH,wBAAsB,aAAa,CACjC,MAAM,EAAE,mBAAmB,EAC3B,QAAQ,GAAE,cAAmC,GAC5C,OAAO,CAAC,qBAAqB,CAAC,CA2BhC"}

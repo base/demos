@@ -1,0 +1,1 @@
+{"version":3,"file":"SignatureStatus.d.ts","sourceRoot":"","sources":["../../../src/signature/components/SignatureStatus.tsx"],"names":[],"mappings":"AAMA,KAAK,oBAAoB,GAAG;IAC1B,QAAQ,CAAC,EAAE,KAAK,CAAC,SAAS,CAAC;IAC3B,SAAS,CAAC,EAAE,MAAM,CAAC;CACpB,CAAC;AAEF,wBAAgB,eAAe,CAAC,EAC9B,QAA2B,EAC3B,SAAS,GACV,EAAE,oBAAoB,2CActB"}

@@ -1,0 +1,1 @@
+{"version":3,"file":"getDefaultSendButtonLabel.d.ts","sourceRoot":"","sources":["../../../../../src/wallet/components/wallet-advanced-send/utils/getDefaultSendButtonLabel.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,2BAA2B,EAAE,MAAM,aAAa,CAAC;AAG/D,wBAAgB,yBAAyB,CACvC,YAAY,EAAE,MAAM,GAAG,IAAI,EAC3B,aAAa,EAAE,2BAA2B,GAAG,IAAI,yEAkBlD"}

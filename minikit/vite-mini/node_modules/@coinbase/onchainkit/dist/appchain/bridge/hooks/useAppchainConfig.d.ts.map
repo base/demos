@@ -1,0 +1,1 @@
+{"version":3,"file":"useAppchainConfig.d.ts","sourceRoot":"","sources":["../../../../src/appchain/bridge/hooks/useAppchainConfig.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,UAAU,CAAC;AAE/C,MAAM,WAAW,iBAAiB;IAChC,SAAS,EAAE,MAAM,CAAC;IAClB,eAAe,EAAE,MAAM,CAAC;CACzB;AAED,wBAAgB,cAAc,CAAC,MAAM,EAAE,iBAAiB;;;;;EA8BvD"}

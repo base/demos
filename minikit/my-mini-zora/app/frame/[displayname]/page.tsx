@@ -2,7 +2,8 @@ import { Metadata } from "next";
 
 export async function generateMetadata({ params }: { params: { displayname: string } }): Promise<Metadata> {
   const displayName = params.displayname;
-  const encodedDisplayName = encodeURIComponent(displayName);
+  const cleanDisplayName = displayName.replace(/\s+/g, '');
+  const encodedDisplayName = encodeURIComponent(cleanDisplayName);
   const blobUrl = `https://${process.env.BLOB_ACCOUNT}.public.blob.vercel-storage.com/images/${encodedDisplayName}.png`;
 
   const frame = {

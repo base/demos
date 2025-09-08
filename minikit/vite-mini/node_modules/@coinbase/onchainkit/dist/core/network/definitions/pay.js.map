@@ -1,0 +1,1 @@
+{"version":3,"file":"pay.js","sources":["../../../../src/core/network/definitions/pay.ts"],"sourcesContent":["export const CDP_HYDRATE_CHARGE = 'cdp_hydrateCharge';\nexport const CDP_CREATE_PRODUCT_CHARGE = 'cdp_createProductCharge';\n"],"names":[],"mappings":"AAAO,MAAM,qBAAqB;AAC3B,MAAM,4BAA4B;"}

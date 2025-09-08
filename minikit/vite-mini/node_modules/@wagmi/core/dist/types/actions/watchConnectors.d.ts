@@ -1,0 +1,9 @@
+import type { Config } from '../createConfig.js';
+import type { GetConnectorsReturnType } from './getConnectors.js';
+export type WatchConnectorsParameters<config extends Config = Config> = {
+    onChange(connections: GetConnectorsReturnType<config>, prevConnectors: GetConnectorsReturnType<config>): void;
+};
+export type WatchConnectorsReturnType = () => void;
+/** https://wagmi.sh/core/api/actions/watchConnectors */
+export declare function watchConnectors<config extends Config>(config: config, parameters: WatchConnectorsParameters<config>): WatchConnectorsReturnType;
+//# sourceMappingURL=watchConnectors.d.ts.map

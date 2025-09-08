@@ -1,0 +1,1 @@
+{"version":3,"file":"swap.js","sources":["../../../../src/core/network/definitions/swap.ts"],"sourcesContent":["export const CDP_LIST_SWAP_ASSETS = 'cdp_listSwapAssets';\nexport const CDP_GET_SWAP_QUOTE = 'cdp_getSwapQuote';\nexport const CDP_GET_SWAP_TRADE = 'cdp_getSwapTrade';\n"],"names":[],"mappings":"AAAO,MAAM,uBAAuB;AAC7B,MAAM,qBAAqB;AAC3B,MAAM,qBAAqB;"}

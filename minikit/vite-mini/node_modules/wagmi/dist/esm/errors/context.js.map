@@ -1,0 +1,1 @@
+{"version":3,"file":"context.js","sourceRoot":"","sources":["../../../src/errors/context.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,SAAS,EAAE,MAAM,WAAW,CAAA;AAKrC,MAAM,OAAO,0BAA2B,SAAQ,SAAS;IAEvD;QACE,KAAK,CAAC,kDAAkD,EAAE;YACxD,QAAQ,EAAE,oBAAoB;SAC/B,CAAC,CAAA;QAJK;;;;mBAAO,4BAA4B;WAAA;IAK5C,CAAC;CACF"}

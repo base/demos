@@ -1,0 +1,1 @@
+{"version":3,"file":"useGetFundingUrl.d.ts","sourceRoot":"","sources":["../../../src/fund/hooks/useGetFundingUrl.ts"],"names":[],"mappings":"AAOA;;;;GAIG;AACH,wBAAgB,gBAAgB,CAAC,EAC/B,YAAY,EACZ,mBAAmB,GACpB,EAAE;IACD,YAAY,CAAC,EAAE,MAAM,CAAC;IACtB,mBAAmB,CAAC,EAAE,MAAM,CAAC;CAC9B,GAAG,MAAM,GAAG,SAAS,CAgCrB"}

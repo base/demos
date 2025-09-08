@@ -1,0 +1,1 @@
+{"version":3,"file":"SendAmountInput.d.ts","sourceRoot":"","sources":["../../../../../src/wallet/components/wallet-advanced-send/components/SendAmountInput.tsx"],"names":[],"mappings":"AAMA,KAAK,oBAAoB,GAAG;IAC1B,SAAS,CAAC,EAAE,MAAM,CAAC;IACnB,aAAa,CAAC,EAAE,MAAM,CAAC;CACxB,CAAC;AAEF,wBAAgB,eAAe,CAAC,EAC9B,SAAS,EACT,aAAa,GACd,EAAE,oBAAoB,2CA6BtB"}

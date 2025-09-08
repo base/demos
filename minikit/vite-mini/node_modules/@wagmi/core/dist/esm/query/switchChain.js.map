@@ -1,0 +1,1 @@
+{"version":3,"file":"switchChain.js","sourceRoot":"","sources":["../../../src/query/switchChain.ts"],"names":[],"mappings":"AAEA,OAAO,EAIL,WAAW,GACZ,MAAM,2BAA2B,CAAA;AAIlC,MAAM,UAAU,0BAA0B,CACxC,MAAc;IAEd,OAAO;QACL,UAAU,CAAC,SAAS;YAClB,OAAO,WAAW,CAAC,MAAM,EAAE,SAAS,CAAC,CAAA;QACvC,CAAC;QACD,WAAW,EAAE,CAAC,aAAa,CAAC;KAK7B,CAAA;AACH,CAAC"}

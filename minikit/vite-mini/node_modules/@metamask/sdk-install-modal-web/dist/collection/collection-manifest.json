@@ -1,0 +1,14 @@
+{
+  "entries": [
+    "components/mm-install-modal/mm-install-modal.js",
+    "components/mm-pending-modal/mm-pending-modal.js",
+    "components/mm-select-modal/mm-select-modal.js"
+  ],
+  "compiler": {
+    "name": "@stencil/core",
+    "version": "4.22.2",
+    "typescriptVersion": "5.5.4"
+  },
+  "collections": [],
+  "bundles": []
+}

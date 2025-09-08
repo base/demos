@@ -1,0 +1,1 @@
+{"version":3,"file":"getWalletDraggableProps.d.ts","sourceRoot":"","sources":["../../../src/wallet/utils/getWalletDraggableProps.ts"],"names":[],"mappings":"AAEA,wBAAgB,uBAAuB,CAAC,EACtC,SAAS,EACT,yBAAyB,GAC1B,EAAE;IACD,SAAS,CAAC,EAAE,OAAO,CAAC;IACpB,yBAAyB,CAAC,EAAE;QAAE,CAAC,EAAE,MAAM,CAAC;QAAC,CAAC,EAAE,MAAM,CAAA;KAAE,CAAC;CACtD;;;;;;;;;EAUA"}

@@ -1,0 +1,1 @@
+{"version":3,"file":"RelayEventManager.d.ts","sourceRoot":"","sources":["../../../../src/sign/walletlink/relay/RelayEventManager.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,MAAM,wBAAwB,CAAC;AAGtD,KAAK,gBAAgB,GAAG,CAAC,QAAQ,EAAE,YAAY,KAAK,IAAI,CAAC;AAEzD,qBAAa,iBAAiB;IAC5B,cAAc,SAAK;IACnB,SAAS,gCAAuC;IAEzC,aAAa,IAAI,MAAM;CAY/B"}

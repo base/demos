@@ -1,0 +1,1 @@
+{"version":3,"file":"watchAsset.js","sourceRoot":"","sources":["../../../src/query/watchAsset.ts"],"names":[],"mappings":"AAEA,OAAO,EAIL,UAAU,GACX,MAAM,0BAA0B,CAAA;AAKjC,MAAM,UAAU,yBAAyB,CAAC,MAAc;IACtD,OAAO;QACL,UAAU,CAAC,SAAS;YAClB,OAAO,UAAU,CAAC,MAAM,EAAE,SAAS,CAAC,CAAA;QACtC,CAAC;QACD,WAAW,EAAE,CAAC,YAAY,CAAC;KAK5B,CAAA;AACH,CAAC"}

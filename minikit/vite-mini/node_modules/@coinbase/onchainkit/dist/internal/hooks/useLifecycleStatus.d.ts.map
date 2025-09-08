@@ -1,0 +1,1 @@
+{"version":3,"file":"useLifecycleStatus.d.ts","sourceRoot":"","sources":["../../../src/internal/hooks/useLifecycleStatus.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EACV,uBAAuB,EAEvB,wBAAwB,EACzB,MAAM,kBAAkB,CAAC;AAG1B,wBAAgB,kBAAkB,CAAC,CAAC,SAAS,uBAAuB,EAClE,YAAY,EAAE,CAAC,GACd,wBAAwB,CAAC,CAAC,CAAC,CA4B7B"}

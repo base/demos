@@ -2,6 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { ZoraToken } from "@/app/api/zora-tokens/route" 
+import { useState } from "react"
 
 interface CollageImageProps {
   src: string
@@ -13,24 +14,46 @@ interface CollageImageProps {
 }
 
 export function CollageImage({ src, alt, className, priority = false, onClick, token }: CollageImageProps) {
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false)
 
   // Build a query string from the token object
   const queryString = new URLSearchParams()
   if (token) {
     queryString.set('name', token.name)
   }
+
+  // Use original image URL directly - no proxy needed for screen capture
+  const imageUrl = src || "/placeholder.svg"
+  
+  // Log image loading for debugging
+  if (token?.name && imageUrl !== '/placeholder.svg') {
+    console.log('🔄 [COLLAGE-IMAGE] Loading image for', token.name + ':', imageUrl);
+  }
   
   return (
-    <div className={cn("relative w-full h-full group", className)}>
+    <div className={cn("relative w-full h-full group", className)} data-image-loaded={imageLoaded}>
       <Link href={`token/${token?.address}?${queryString.toString()}`} className="block w-full h-full" onClick={onClick} >
         <Image
-          src={src || "/placeholder.svg"}
+          src={imageUrl}
           alt={alt}
           fill
           className="object-cover transition-all duration-300"
           priority={priority}
           sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
+          onLoad={() => setImageLoaded(true)}
+          onError={() => {
+            setImageError(true)
+            setImageLoaded(false)
+          }}
         />
+        
+        {/* Loading placeholder */}
+        {!imageLoaded && !imageError && (
+          <div className="absolute inset-0 bg-gray-800 animate-pulse flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-gray-600 border-t-gray-400 rounded-full animate-spin"></div>
+          </div>
+        )}
         
         {/* Token name overlay - visible only on hover */}
         {token?.name && (
