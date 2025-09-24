@@ -13,7 +13,7 @@ export const minikitConfig = {
     payload: "",
     signature: ""
   },
-  frame: {
+  miniapp: {
     version: "1",
     name: "Cubey", 
     subtitle: "Your AI Ad Companion", 
