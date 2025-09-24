@@ -8,7 +8,7 @@ import styles from "./page.module.css";
 interface AuthResponse {
   success: boolean;
   user?: {
-    fid: number; // FID is a number in Farcaster
+    fid: number; // FID is the unique identifier for the user
     issuedAt?: number;
     expiresAt?: number;
   };
