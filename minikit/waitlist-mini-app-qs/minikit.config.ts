@@ -1,6 +1,6 @@
 const ROOT_URL =
   process.env.NEXT_PUBLIC_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:3000');
 
 /**
  * MiniApp configuration object. Must follow the Farcaster MiniApp specification.
@@ -13,7 +13,7 @@ export const minikitConfig = {
     payload: "",
     signature: ""
   },
-  frame: {
+  miniapp: {
     version: "1",
     name: "Cubey", 
     subtitle: "Your AI Ad Companion", 

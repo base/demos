@@ -1,14 +1,18 @@
 "use client";
-import { sdk } from '@farcaster/miniapp-sdk';
+
+import { useComposeCast } from '@coinbase/onchainkit/minikit';
 import { minikitConfig } from "../../minikit.config";
 import styles from "./page.module.css";
 
 export default function Success() {
+
+  const { composeCastAsync } = useComposeCast();
+  
   const handleShare = async () => {
     try {
-      const text = `Yay! I just joined the waitlist for ${minikitConfig.frame.name.toUpperCase()}! `;
+      const text = `Yay! I just joined the waitlist for ${minikitConfig.miniapp.name.toUpperCase()}! `;
       
-      const result = await sdk.actions.composeCast({
+      const result = await composeCastAsync({
         text: text,
         embeds: [process.env.NEXT_PUBLIC_URL || ""]
       });
@@ -16,9 +20,6 @@ export default function Success() {
       // result.cast can be null if user cancels
       if (result?.cast) {
         console.log("Cast created successfully:", result.cast.hash);
-        if (result.cast.channelKey) {
-          console.log("Posted to channel:", result.cast.channelKey);
-        }
       } else {
         console.log("User cancelled the cast");
       }
@@ -42,7 +43,7 @@ export default function Success() {
             </div>
           </div>
           
-          <h1 className={styles.title}>Welcome to the {minikitConfig.frame.name.toUpperCase()}!</h1>
+          <h1 className={styles.title}>Welcome to the {minikitConfig.miniapp.name.toUpperCase()}!</h1>
           
           <p className={styles.subtitle}>
             You&apos;re in! We&apos;ll notify you as soon as we launch.<br />

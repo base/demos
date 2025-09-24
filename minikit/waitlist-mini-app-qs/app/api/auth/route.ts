@@ -3,6 +3,39 @@ import { NextRequest, NextResponse } from "next/server";
 
 const client = createClient();
 
+// Helper function to determine the correct domain for JWT verification
+function getUrlHost(request: NextRequest): string {
+  // First try to get the origin from the Origin header (most reliable for CORS requests)
+  const origin = request.headers.get("origin");
+  if (origin) {
+    try {
+      const url = new URL(origin);
+      return url.host;
+    } catch (error) {
+      console.warn("Invalid origin header:", origin, error);
+    }
+  }
+
+  // Fallback to Host header
+  const host = request.headers.get("host");
+  if (host) {
+    return host;
+  }
+
+  // Final fallback to environment variables (your original logic)
+  let urlValue: string;
+  if (process.env.VERCEL_ENV === "production") {
+    urlValue = process.env.NEXT_PUBLIC_URL!;
+  } else if (process.env.VERCEL_URL) {
+    urlValue = `https://${process.env.VERCEL_URL}`;
+  } else {
+    urlValue = "http://localhost:3000";
+  }
+
+  const url = new URL(urlValue);
+  return url.host;
+}
+
 export async function GET(request: NextRequest) {
   // Because we're fetching this endpoint via `sdk.quickAuth.fetch`,
   // if we're in a mini app, the request will include the necessary `Authorization` header.
@@ -22,55 +55,28 @@ export async function GET(request: NextRequest) {
       domain: getUrlHost(request),
     });
 
+    console.log("payload", payload);
+
     // If the token was valid, `payload.sub` will be the user's Farcaster ID.
-    // This is guaranteed to be the user that signed the message in the mini app.
-    // You can now use this to do anything you want, e.g. fetch the user's data from your database
-    // or fetch the user's info from a service like Neynar.
     const userFid = payload.sub;
 
-    // By default, we'll return the user's FID. Update this to meet your needs.
-    return NextResponse.json({ userFid });
+    // Return user information for your waitlist application
+    return NextResponse.json({
+      success: true,
+      user: {
+        fid: userFid,
+        issuedAt: payload.iat,
+        expiresAt: payload.exp,
+      },
+    });
+
   } catch (e) {
     if (e instanceof Errors.InvalidTokenError) {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 });
     }
-
     if (e instanceof Error) {
       return NextResponse.json({ message: e.message }, { status: 500 });
     }
-
     throw e;
   }
-}
-
-function getUrlHost(request: NextRequest) {
-  // First try to get the origin from the Origin header
-  const origin = request.headers.get("origin");
-  if (origin) {
-    try {
-      const url = new URL(origin);
-      return url.host;
-    } catch (error) {
-      console.warn("Invalid origin header:", origin, error);
-    }
-  }
-
-  // Fallback to Host header
-  const host = request.headers.get("host");
-  if (host) {
-    return host;
-  }
-
-  // Final fallback to environment variables
-  let urlValue: string;
-  if (process.env.VERCEL_ENV === "production") {
-    urlValue = process.env.NEXT_PUBLIC_URL!;
-  } else if (process.env.VERCEL_URL) {
-    urlValue = `https://${process.env.VERCEL_URL}`;
-  } else {
-    urlValue = "http://localhost:3000";
-  }
-
-  const url = new URL(urlValue);
-  return url.host;
 }
