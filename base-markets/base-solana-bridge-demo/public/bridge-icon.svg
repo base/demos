@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Black background -->
+  <rect width="32" height="32" fill="#000000"/>
+  
+  <!-- Bridge structure in hacker green -->
+  <!-- Base/deck -->
+  <rect x="2" y="28" width="28" height="2" fill="#00ff00"/>
+  
+  <!-- Left tower -->
+  <rect x="2" y="2" width="2" height="26" fill="#00ff00"/>
+  
+  <!-- Right tower -->
+  <rect x="28" y="2" width="2" height="26" fill="#00ff00"/>
+  
+  <!-- Suspension cables -->
+  <line x1="4" y1="4" x2="16" y2="26" stroke="#00ff00" stroke-width="1"/>
+  <line x1="28" y1="4" x2="16" y2="26" stroke="#00ff00" stroke-width="1"/>
+  
+  <!-- Bridge roadway -->
+  <rect x="8" y="20" width="16" height="1" fill="#00ff00"/>
+  
+  <!-- Small accent dots for pixelated effect -->
+  <rect x="6" y="8" width="1" height="1" fill="#ffffff"/>
+  <rect x="25" y="8" width="1" height="1" fill="#ffffff"/>
+</svg>
+

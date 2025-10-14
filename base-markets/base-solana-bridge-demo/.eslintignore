@@ -1,0 +1,8 @@
+src/lib/generated/**/*
+src/lib/bridge-client/**/*
+src/lib/idl*.ts
+bridge-contracts/**/*
+bridge-solana/**/*
+.next/**/*
+node_modules/**/*
+

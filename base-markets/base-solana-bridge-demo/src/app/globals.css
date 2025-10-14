@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/* Fonts */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+:root {
+  --background: #000000;
+  --foreground: #00ff00;
+  --accent: #ffffff;
+  --border: #00ff00;
+  --muted: #008800;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  background-image: 
+    radial-gradient(circle at 20% 80%, rgba(0, 255, 0, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(0, 255, 0, 0.05) 0%, transparent 50%);
+}
+
+/* Utility class for white text */
+.white-text {
+  color: #FFFFFF !important;
+}
+
+/* Hacker green defaults */
+.hacker-text {
+  color: #00ff00;
+}
+
+.hacker-title {
+  font-family: 'Orbitron', monospace;
+  font-weight: 900;
+  color: #00ff00;
+  animation: glow 2s ease-in-out infinite alternate;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.hacker-border {
+  border: 1px solid #00ff00;
+  box-shadow: 
+    0 0 10px rgba(0, 255, 0, 0.3),
+    inset 0 0 10px rgba(0, 255, 0, 0.1);
+}
+
+/* Buttons */
+.hacker-button {
+  background: linear-gradient(45deg, #000000, #001100);
+  border: 2px solid #00ff00;
+  color: #00ff00;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+}
+
+.hacker-button:hover {
+  background: linear-gradient(45deg, #001100, #002200);
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+  transform: translateY(-2px);
+}
+
+.hacker-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Inputs */
+.hacker-input {
+  background: #000000;
+  border: 1px solid #00ff00;
+  color: #00ff00;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.hacker-input:focus {
+  outline: none;
+  border-color: #00ff00;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
+/* Animations */
+@keyframes glow {
+  0%, 100% { text-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00, 0 0 15px #00ff00; }
+  50% { text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00, 0 0 30px #00ff00; }
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+@keyframes matrix-rain {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+/* Solana wallet adapter overrides (still green) */
+.wallet-adapter-button {
+  background: black !important;
+  border: 2px solid #00ff00 !important;
+  color: #00ff00 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-weight: bold !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+}

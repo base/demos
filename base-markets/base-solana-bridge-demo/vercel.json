@@ -1,0 +1,15 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install --legacy-peer-deps",
+  "framework": "nextjs",
+  "functions": {
+    "app/api/faucet/sol/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "NEXT_PUBLIC_SOLANA_NETWORK": "devnet"
+  }
+}
+

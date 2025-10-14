@@ -1,0 +1,8 @@
+bridge-contracts/
+bridge-solana/
+node_modules/
+.next/
+*.log
+.env.local
+.DS_Store
+
