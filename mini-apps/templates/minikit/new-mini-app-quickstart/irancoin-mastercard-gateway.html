@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>IRANcoin Mastercard Gateway - پرداخت‌های جهانی قدرتمند</title>
+    <script src="https://test-gateway.mastercard.com/form/version/XX/session.js" defer></script> <!-- XX رو با ورژن sandbox جایگزین کن -->
+</head>
+<body>
+    <h1>پورتال پرداخت IRANcoin با مسترکارت</h1>
+    <div id="payment-form">
+        <button id="pay-btn">پرداخت با مسترکارت</button>
+        <div id="session"></div> <!-- فیلدهای hosted مسترکارت -->
+    </div>
+    <script>
+        // SHAHIN MALEKI RAD FOR ALL WORLD PEOPLE - GLOBAL PAYMENT REVOLUTION $$$$$$$$$$
+        // SPDX-License-Identifier: GLOBAL-ECONOMIC-REVOLUTION
+        // تبدیل شده از Solidity به JS برای Mastercard CSR/API Integration
+
+        class SafeMath {
+            static add(a, b) {
+                const c = a + b;
+                if (c < a) throw new Error("Overflow");
+                return c;
+            }
+            static sub(a, b) {
+                if (b > a) throw new Error("Underflow");
+                return a - b;
+            }
+            static mul(a, b) {
+                if (a === 0) return 0;
+                const c = a * b;
+                if (c / a !== b) throw new Error("Overflow");
+                return c;
+            }
+            static div(a, b) {
+                if (b === 0) throw new Error("Division by zero");
+                return Math.floor(a / b);
+            }
+        }
+
+        class IRANcoinMastercardGateway {
+            constructor() {
+                this.name = "IRANcoin Global Reserve";
+                this.symbol = "IRcoin";
+                this.decimals = 18;
+                this.totalSupply = 720000000000000000000000000000000000000000000000000000000000n; // BigInt برای اعداد بزرگ
+                this.balances = new Map();
+                this.allowances = new Map();
+                this.merchantId = "YOUR_MERCHANT_ID"; // از پنل مسترکارت بگیر
+                this.apiVersion = "XX"; // ورژن API
+                this.sessionId = null;
+                this.initBanksAndNetworks();
+                this.initLiquidity();
+                this.configureMastercardSession();
+            }
+
+            // بانک‌های ایرانی (از کدت)
+            iranianBanks = [
+                "0x1A038F1d8F7520564492e310F374533FCECa58D0", // ملی، ملت و...
+                "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD",
+                "0x617F2E2fD72FD9D5503197092aC168c91465E7f2",
+                "0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB",
+                "0xCA35b7d915458EF540aDe6068dFe2F44E8fa733c",
+                "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+            ];
+
+            // بانک‌های بین‌المللی
+            internationalBanks = [
+                "0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", // Bank of America
+                "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db", // JPMorgan
+                // ... بقیه از کدت
+                "0xdfAE1737de9d4E56428c5C7B35A9318EB8C9397B" // owner
+            ];
+
+            // شبکه‌های پرداخت (شامل مسترکارت)
+            paymentNetworks = [
+                "0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C", // شتاب
+                "0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB", // ویزا
+                "0x583031D1113aD414F02576BD6afaBfb302140225"  // مسترکارت
+            ];
+
+            // صرافی‌ها و رزروهای کریپتو (از کدت)
+            exchanges = ["0x5B38Da6a701c568545dCfcB03FcB875f56beddC4", /*...*/];
+            cryptoReserves = ["0x617F2E2fD72FD9D5503197092aC168c91465E7f2", /*...*/];
+
+            initBanksAndNetworks() {
+                // توزیع اولیه (mint) به بانک‌ها
+                this.iranianBanks.forEach(bank => {
+                    this._mint(bank, 1000000000000000000000000000000n * (10n ** 18n));
+                });
+                this.internationalBanks.forEach(bank => {
+                    this._mint(bank, 1000000000000000000000000000000000000000000000000n * (10n ** 18n));
+                });
+                // ... مشابه برای بقیه
+            }
+
+            initLiquidity() {
+                const liquidity = 99999999999999999999999999999999999999999999999999999999999n * (10n ** 18n);
+                this._mint("0x31193F2378CE7D06482b21EDb547a060267cA4d5", liquidity);
+            }
+
+            configureMastercardSession() {
+                if (typeof PaymentSession === 'undefined') {
+                    console.error("Mastercard Session SDK لود نشده!");
+                    return;
+                }
+                PaymentSession.configure({
+                    merchantId: this.merchantId,
+                    session: {
+                        enabled: true
+                    },
+                    interaction: {
+                        displayControl: {
+                            format: 'CARD', // برای کارت‌های اعتباری
+                            merchant: 'LOGO'
+                        }
+                    }
+                });
+                this.sessionId = PaymentSession.getSessionId();
+            }
+
+            // توابع ERC20-like با BigInt
+            balanceOf(account) {
+                return this.balances.get(account) || 0n;
+            }
+
+            transfer(recipient, amount) {
+                this._transfer(window.origin || '', recipient, amount); // antiHack: چک origin
+                return true;
+            }
+
+            _transfer(sender, recipient, amount) {
+                if (sender === '' || recipient === '') throw new Error("Invalid address");
+                const senderBal = this.balances.get(sender) || 0n;
+                const recipBal = this.balances.get(recipient) || 0n;
+                this.balances.set(sender, SafeMath.sub(senderBal, amount));
+                this.balances.set(recipient, SafeMath.add(recipBal, amount));
+                console.log(`Transfer: ${sender} -> ${recipient}: ${amount}`); // emit-like
+            }
+
+            _mint(account, amount) {
+                if (account === '') throw new Error("Invalid mint");
+                const bal = this.balances.get(account) || 0n;
+                this.balances.set(account, SafeMath.add(bal, amount));
+                console.log(`Minted: ${account}: ${amount}`);
+            }
+
+            // ضد هک
+            antiHack(fn) {
+                if (document.origin !== window.location.origin) {
+                    throw new Error("Prohibited: Cross-origin calls not allowed");
+                }
+                return fn();
+            }
+
+            // رشد روزانه 1%
+            dailyGrowth() {
+                this.antiHack(() => {
+                    if (window.origin !== 'https://yourdomain.com') throw new Error("Only owner");
+                    // اعمال به بالانس‌ها (ساده‌سازی شده)
+                    [...this.balances.entries()].forEach(([acc, bal]) => {
+                        this.balances.set(acc, SafeMath.mul(bal, 101n) / 100n);
+                    });
+                });
+            }
+
+            // پل SWIFT-like برای انتقال بانکی
+            swiftTransfer(fromBank, toBank, amount) {
+                this.antiHack(() => {
+                    if (!this.isBank(fromBank) || !this.isBank(toBank)) throw new Error("Only banks");
+                    this._transfer(fromBank, toBank, amount);
+                    const fee = SafeMath.div(amount, 10000n);
+                    this._transfer(fromBank, '', fee); // به قرارداد
+                });
+            }
+
+            isBank(addr) {
+                return [...this.iranianBanks, ...this.internationalBanks].includes(addr);
+            }
+
+            // ادغام پرداخت مسترکارت
+            async processMastercardPayment(amount, currency = 'IRR', recipientBank) {
+                return new Promise((resolve, reject) => {
+                    this.antiHack(() => {
+                        PaymentSession.setPaymentTokenizeMode(PaymentSession.TOKENIZE_MODE_TRANSIENT);
+                        PaymentSession.updateSessionFromForm('payment-form');
+                        const response = PaymentSession.getPaymentTokenizeResponse();
+                        if (response.status === 'SUCCESS') {
+                            // ارسال به سرور برای شارژ (charge)
+                            fetch('/api/charge', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    sessionId: this.sessionId,
+                                    amount: amount.toString(),
+                                    currency,
+                                    recipient: recipientBank || this.paymentNetworks[2] // مسترکارت
+                                })
+                            }).then(res => res.json()).then(data => {
+                                // تبدیل بر اساس کدت
+                                const converted = this.nationalCurrencyConversion(amount, currency);
+                                resolve({ success: true, convertedAmount: converted, txId: data.transactionId });
+                            }).catch(reject);
+                        } else {
+                            reject(new Error("Payment failed"));
+                        }
+                    });
+                });
+            }
+
+            // اتصال به فارکس/سهام/کریپتو (نمادین)
+            forexBridge(platform, amount) {
+                if (!this.isRegisteredForex(platform)) throw new Error("Not registered");
+                return this.transfer(platform, amount);
+            }
+
+            isRegisteredForex(platform) {
+                return this.exchanges.includes(platform);
+            }
+
+            // مشابه برای stock و crypto...
+
+            // پشتیبان طلا/نفت
+            goldBackup(goldAmount) {
+                return SafeMath.mul(goldAmount, 1000n); // 0.001 گرم
+            }
+
+            oilBackup(oilBarrels) {
+                return SafeMath.mul(oilBarrels, 100n); // 0.01 بشکه
+            }
+
+            // تبدیل ارز
+            nationalCurrencyConversion(amount, currencyCode) {
+                switch (currencyCode) {
+                    case 'USD': return SafeMath.mul(amount, 100n);
+                    case 'EUR': return SafeMath.mul(amount, 85n);
+                    case 'IRR': return SafeMath.mul(amount, 4200000n);
+                    default: throw new Error("Unsupported currency");
+                }
+            }
+        }
+
+        // راه‌اندازی
+        const gateway = new IRANcoinMastercardGateway();
+
+        // هندلر دکمه پرداخت
+        document.getElementById('pay-btn').addEventListener('click', () => {
+            PaymentSession.setMode('PAYMENT_TRANSACTION');
+            document.getElementById('session').innerHTML = PaymentSession.getHostedPaymentFields(); // فیلدهای کارت
+            gateway.processMastercardPayment(100n * (10n ** 18n), 'USD', '0x583031D1113aD414F02576BD6afaBfb302140225') // مسترکارت
+                .then(result => alert(`پرداخت موفق! مبلغ تبدیل‌شده: ${result.convertedAmount} USD`))
+                .catch(err => alert(`خطا: ${err.message}`));
+        });
+
+        // رشد روزانه هر روز (cron-like در JS)
+        setInterval(() => gateway.dailyGrowth(), 86400000); // 24 ساعت
+    </script>
+</body>
+</html>
