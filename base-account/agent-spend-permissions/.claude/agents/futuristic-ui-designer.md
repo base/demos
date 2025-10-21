@@ -1,6 +1,7 @@
 ---
 name: futuristic-ui-designer
-description: Use this agent when you need to create modern, visually stunning user interfaces with futuristic design elements. Examples include: designing landing pages with glassmorphism effects, creating dashboard interfaces with neon accents and dark themes, building component libraries with advanced animations, implementing sci-fi inspired navigation systems, or when you want to transform existing interfaces into cutting-edge, futuristic designs with advanced CSS techniques and modern JavaScript interactions.
+description: >-
+  Use this agent when you need to create modern, visually stunning user interfaces with futuristic design elements. Examples include: designing landing pages with glassmorphism effects, creating dashboard interfaces with neon accents and dark themes, building component libraries with advanced animations, implementing sci-fi inspired navigation systems, or when you want to transform existing interfaces into cutting-edge, futuristic designs with advanced CSS techniques and modern JavaScript interactions.
 model: sonnet
 ---
 
