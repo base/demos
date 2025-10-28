@@ -32,10 +32,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { address, message, signature } = body;
 
-    console.log("address", address);
-    console.log("message", message);
-    console.log("signature", signature);
-
     // Validate required fields
     if (!address || !message || !signature) {
       return NextResponse.json(
@@ -89,7 +85,6 @@ export async function POST(request: NextRequest) {
       message,
       signature: signature as `0x${string}`,
     });
-    console.log("isValid", isValid);
 
     if (isValid) {
       // Mark nonce as used (expire after 1 hour)
