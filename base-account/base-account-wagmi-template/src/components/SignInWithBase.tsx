@@ -37,13 +37,10 @@ export function SignInWithBase({ connector }: SignInWithBaseProps) {
         });
 
         const walletAddress = accounts.accounts[0].address;
-        console.log("walletAddress", walletAddress);
         const signature =
           accounts.accounts[0].capabilities.signInWithEthereum.signature;
         const message =
           accounts.accounts[0].capabilities.signInWithEthereum.message;
-        console.log("message", message);
-        console.log("signature", signature);
         // Verify the signature on the backend
         const verifyResponse = await fetch("/api/auth/verify", {
           method: "POST",
