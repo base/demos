@@ -17,8 +17,8 @@ export function getConfig() {
     }),
     ssr: true,
     transports: {
-      [base.id]: http(),
       [baseSepolia.id]: http(),
+      [base.id]: http(),
     },
   });
 }
