@@ -1,0 +1,10 @@
+{
+    "buildCommand": "npm run build",
+    "outputDirectory": ".next",
+    "installCommand": "npm install --legacy-peer-deps",
+    "devCommand": "npm run dev",
+    "framework": "nextjs",
+    "regions": [
+        "iad1"
+    ]
+}

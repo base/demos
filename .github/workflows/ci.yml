@@ -1,0 +1,87 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Run Tests & Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run TypeScript type check
+        run: npm run type-check
+      
+      - name: Run ESLint
+        run: npm run lint
+      
+      - name: Run tests
+        run: npm run test
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Check for secrets
+        run: |
+          if git ls-files | xargs grep -l "PRIVATE_KEY\|SECRET_KEY\|API_KEY" | grep -v ".example\|.md\|.github"; then
+            echo "❌ Potential secrets found in committed files!"
+            exit 1
+          else
+            echo "✅ No secrets found in committed files"
+          fi
+
+  contracts:
+    name: Smart Contract Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run Hardhat tests
+        run: npx hardhat test
+      
+      - name: Run Solhint
+        run: npx solhint 'contracts/**/*.sol'
+      
+      - name: Compile contracts
+        run: npx hardhat compile
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+      
+      - name: Check dependencies
+        run: npm outdated || true

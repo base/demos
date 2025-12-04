@@ -1,0 +1,62 @@
+{
+    "accountAssociation": {
+        "header": "eyJmaWQiOjE0NjI1MTYsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhlMDM3ZWRmOTU4MjI3M0YwNTlkQjU1MzMxZTA2MDU0NEEyNUEwNzQ4In0",
+        "payload": "eyJkb21haW4iOiJ3d3cuYmFzZWNhcnRlbC5pbiJ9",
+        "signature": "FT7bMh4yi/ChU9GiY9tn7WJxKahM5ehn9dpB4yX2LV4pMaxI8dSmX19F7ACnkhKD7HDQ5PapChEtDz048ZlXHxs="
+    },
+    "baseBuilder": {
+        "allowedAddresses": [
+            "0xfe09c35AdB9200c90455d31a2BFdfD7e30c48F6d"
+        ]
+    },
+    "frame": {
+        "version": "1",
+        "name": "Base Cartel",
+        "iconUrl": "https://i.imgur.com/brcnijg.png",
+        "homeUrl": "https://www.basecartel.in",
+        "imageUrl": "https://i.imgur.com/2bsV8mV.png",
+        "splashImageUrl": "https://i.imgur.com/brcnijg.png",
+        "splashBackgroundColor": "#000000",
+        "description": "An onchain social strategy game on Base. Join the cartel, raid, betray, and earn yield.",
+        "ogTitle": "Base Cartel",
+        "ogDescription": "An onchain social strategy game on Base. Join the cartel, raid, betray, and earn yield.",
+        "ogImageUrl": "https://i.imgur.com/2bsV8mV.png",
+        "primaryCategory": "games",
+        "subtitle": "Rule the Chain",
+        "tagline": "Join the Syndicate",
+        "screenshotUrls": [
+            "https://i.imgur.com/2bsV8mV.png",
+            "https://i.imgur.com/2bsV8mV.png",
+            "https://i.imgur.com/2bsV8mV.png"
+        ],
+        "heroImageUrl": "https://i.imgur.com/2bsV8mV.png",
+        "webhookUrl": "https://www.basecartel.in/api/webhook",
+        "requiredCapabilities": [
+            "actions.ready",
+            "actions.signIn",
+            "actions.openUrl",
+            "actions.sendToken",
+            "actions.viewToken",
+            "actions.composeCast",
+            "actions.viewProfile",
+            "actions.setPrimaryButton",
+            "actions.swapToken",
+            "actions.close",
+            "actions.viewCast",
+            "wallet.getEthereumProvider"
+        ],
+        "requiredChains": [
+            "eip155:8453",
+            "eip155:10"
+        ],
+        "canonicalDomain": "www.basecartel.in",
+        "noindex": false,
+        "tags": [
+            "base",
+            "game",
+            "strategy",
+            "cartel",
+            "social"
+        ]
+    }
+}
