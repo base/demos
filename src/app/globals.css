@@ -1,0 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Base Cartel Dark Theme */
+  --background: #0B0E12;
+  --foreground: #ffffff;
+  --card: #1B1F26;
+  --card-foreground: #ffffff;
+  --popover: #1B1F26;
+  --popover-foreground: #ffffff;
+  
+  /* Base Blue Neon */
+  --primary: #4A87FF;
+  --primary-foreground: #ffffff;
+  
+  /* Gold Prestige */
+  --gold: #D4AF37;
+  --gold-foreground: #0B0E12;
+  
+  /* Accents */
+  --secondary: #1B1F26;
+  --secondary-foreground: #ffffff;
+  --muted: #1B1F26;
+  --muted-foreground: #94A3B8;
+  --accent: #4FF0E6;
+  --accent-foreground: #0B0E12;
+  
+  /* Status Colors */
+  --destructive: #FF3B30;
+  --destructive-foreground: #ffffff;
+  --success: #3DFF72;
+  --success-foreground: #0B0E12;
+  
+  --border: #2A2F38;
+  --input: #1B1F26;
+  --ring: #4A87FF;
+  --radius: 0.75rem;
+  
+  /* Neon Glows */
+  --glow-blue: 0 0 20px rgba(74, 135, 255, 0.5);
+  --glow-gold: 0 0 16px rgba(212, 175, 55, 0.4);
+  --glow-cyan: 0 0 12px rgba(79, 240, 230, 0.5);
+  --glow-red: 0 0 16px rgba(255, 59, 48, 0.5);
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: 'rlig' 1, 'calt' 1;
+}
+
+/* Headings use Orbitron */
+h1, h2, h3, h4, h5, h6, .heading-font {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+.overflow-x-auto {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Neon Glow Utilities */
+.glow-blue {
+  box-shadow: var(--glow-blue);
+}
+
+.glow-gold {
+  box-shadow: var(--glow-gold);
+}
+
+.glow-cyan {
+  box-shadow: var(--glow-cyan);
+}
+
+.glow-red {
+  box-shadow: var(--glow-red);
+}
+
+/* Neon Border */
+.border-neon-blue {
+  border-color: #4A87FF;
+  box-shadow: 0 0 8px rgba(74, 135, 255, 0.3);
+}
+
+.border-neon-gold {
+  border-color: #D4AF37;
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.3);
+}
+
+/* Card with subtle inner glow */
+.card-glow {
+  background: linear-gradient(145deg, #1B1F26 0%, #151820 100%);
+  border: 1px solid rgba(74, 135, 255, 0.2);
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(74, 135, 255, 0.1);
+}
+
+/* Pulse animation for active states */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(74, 135, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(74, 135, 255, 0.8);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Gold text gradient */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #D4AF37 0%, #F4E5B8 50%, #D4AF37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Neon text */
+.text-neon-blue {
+  color: #4A87FF;
+  text-shadow: 0 0 8px rgba(74, 135, 255, 0.6);
+}
+
+.text-neon-cyan {
+  color: #4FF0E6;
+  text-shadow: 0 0 8px rgba(79, 240, 230, 0.6);
+}
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+  }
+}

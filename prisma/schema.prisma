@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  walletAddress String   @unique
+  farcasterId   String?  @unique
+  createdAt     DateTime @default(now())
+
+  // Referral System
+  referralPointsTotal      Float @default(0)
+  referralRewardsClaimable Float @default(0)
+  referralRewardsClaimed   Float @default(0)
+
+  invites   Invite[]
+  referrals Referral[] @relation("Referrer")
+  referred  Referral?  @relation("Referee")
+
+  // Feature 9: Clan System
+  clanMembers    CartelReferral[] @relation("ClanBoss")
+  clanMembership CartelReferral?  @relation("ClanMember")
+
+  // Feature 6: Last Seen
+  lastSeenAt DateTime?
+  shares     Int       @default(0) // Added for Feature 8 title calc
+}
+
+model CartelReferral {
+  id              String   @id @default(uuid())
+  userAddress     String   @unique
+  user            User     @relation("ClanMember", fields: [userAddress], references: [walletAddress])
+  referrerAddress String
+  referrer        User     @relation("ClanBoss", fields: [referrerAddress], references: [walletAddress])
+  season          Int      @default(1)
+  joinedAt        DateTime @default(now())
+
+  @@index([referrerAddress])
+}
+
+model Invite {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  creatorId String?
+  creator   User?    @relation(fields: [creatorId], references: [id])
+  status    String   @default("unused") // unused, used
+  type      String   @default("standard") // founder, standard
+  maxUses   Int      @default(1)
+  usedCount Int      @default(0)
+  createdAt DateTime @default(now())
+
+  referral Referral?
+}
+
+model Referral {
+  id         String   @id @default(uuid())
+  referrerId String
+  referrer   User     @relation("Referrer", fields: [referrerId], references: [id])
+  refereeId  String   @unique
+  referee    User     @relation("Referee", fields: [refereeId], references: [id])
+  inviteId   String   @unique
+  invite     Invite   @relation(fields: [inviteId], references: [id])
+  joinedAt   DateTime @default(now())
+
+  // Tracking Metrics
+  totalFeesPaidByReferee          Float   @default(0)
+  totalProfitShareEarnedByReferee Float   @default(0)
+  referralPoints                  Float   @default(0)
+  isRewardable                    Boolean @default(true)
+}
+
+model CartelEvent {
+  id                String      @id @default(uuid())
+  txHash            String      @unique
+  blockNumber       Int
+  timestamp         DateTime
+  type              String // RAID, HIGH_STAKES_RAID, RETIRE
+  attacker          String?
+  target            String?
+  user              String? // For RETIRE
+  stolenShares      Float?
+  selfPenaltyShares Float?
+  feePaid           Float?
+  payout            Float?
+  createdAt         DateTime    @default(now())
+  news              CartelNews?
+
+  @@index([timestamp(sort: Desc)])
+}
+
+model CartelNews {
+  id             String      @id @default(uuid())
+  eventId        String      @unique
+  event          CartelEvent @relation(fields: [eventId], references: [id])
+  type           String // RAID, HIGH_STAKES_RAID, RETIRE
+  headline       String
+  timestamp      DateTime
+  attacker       String?
+  target         String?
+  user           String?
+  importance     Int         @default(1)
+  postedToSocial Boolean     @default(false)
+  txHash         String?
+  createdAt      DateTime    @default(now())
+
+  @@index([timestamp(sort: Desc)])
+}
