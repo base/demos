@@ -9,9 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.5.7",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
+    "next": "16.0.7",
     "@base-org/account": "latest",
     "@base-org/account-ui": "latest",
     "axios": "^1.6.0"

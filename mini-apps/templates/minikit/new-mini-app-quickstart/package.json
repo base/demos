@@ -12,9 +12,9 @@
     "@coinbase/onchainkit": "latest",
     "@farcaster/miniapp-sdk": "^0.1.8",
     "@tanstack/react-query": "^5.81.5",
-    "next": "15.3.6",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "next": "16.0.7",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
     "viem": "^2.31.6",
     "wagmi": "^2.16.3"
   },

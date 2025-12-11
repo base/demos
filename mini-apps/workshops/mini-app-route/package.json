@@ -12,9 +12,9 @@
     "@coinbase/onchainkit": "^0.38.19",
     "@farcaster/frame-sdk": "^0.1.8",
     "@tanstack/react-query": "^5",
-    "next": "15.5.7",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "next": "16.0.7",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
     "viem": "^2.27.2",
     "wagmi": "^2.16.0"
   },
