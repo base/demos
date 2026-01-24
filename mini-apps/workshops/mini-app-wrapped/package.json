@@ -10,9 +10,9 @@
   },
   "dependencies": {
     "@coinbase/onchainkit": "^0.38.9",
-    "next": "15.3.6",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "next": "16.0.7",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
     "viem": "^2.28.1"
   },
   "devDependencies": {
