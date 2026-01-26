@@ -96,10 +96,10 @@ vercel env add NEXT_PUBLIC_URL production
 
 ### 2. Update Configuration
 
-Update your `minikit.config.ts` file to include the `accountAssociation` object:
+Update your `farcasterConfig.config.ts` file to include the `accountAssociation` object:
 
 ```ts
-export const minikitConfig = {
+export const farcasterConfig = {
     accountAssociation: {
         "header": "your-header-here",
         "payload": "your-payload-here",
