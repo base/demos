@@ -12,7 +12,7 @@ const config = createConfig({
   connectors: [farcasterMiniApp()],
 });
 
-export function RootProvider({ children }: { children: ReactNode }) {
+export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
 
   return (

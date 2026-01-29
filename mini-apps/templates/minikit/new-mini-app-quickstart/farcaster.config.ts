@@ -7,7 +7,7 @@ const ROOT_URL =
  *
  * @see {@link https://miniapps.farcaster.xyz/docs/guides/publishing}
  */
-export const minikitConfig = {
+export const farcasterConfig = {
   accountAssociation: {
     header: "",
     payload: "",
