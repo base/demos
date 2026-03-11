@@ -1,0 +1,47 @@
+{
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/agent.ts",
+    "start:test": "tsx src/agent.ts --test-mode",
+    "dev": "tsx watch src/agent.ts",
+    "build": "tsc"{{#if hasAnyMcp}},
+    "postinstall": "node scripts/patch-mcp-adapters.mjs"{{/if}}
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.0",
+    "@langchain/langgraph": "^0.2.0",
+{{#if isClaude}}
+    "@langchain/anthropic": "^0.3.0",
+{{/if}}
+{{#if (or isOpenai isVenice)}}
+    "@langchain/openai": "^0.4.0",
+{{/if}}
+{{#if isGemini}}
+    "@langchain/google-genai": "^0.2.0",
+{{/if}}
+{{#if (eq wallet "cdp-server-wallet")}}
+    "@coinbase/cdp-sdk": "^1.44.1",
+    "viem": "^2.0.0",
+{{/if}}
+{{#if hasAnyX402}}
+    "@x402/fetch": "latest",
+    "@x402/evm": "latest",
+{{#unless (eq wallet "cdp-server-wallet")}}
+    "viem": "^2.0.0",
+{{/unless}}
+{{/if}}
+{{#if hasAnyMcp}}
+    "@langchain/mcp-adapters": "^0.6.0",
+{{/if}}
+    "zod": "^3.24.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}

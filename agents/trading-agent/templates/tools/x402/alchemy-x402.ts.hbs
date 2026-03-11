@@ -1,0 +1,312 @@
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import { getX402Fetch } from "./client.js";
+import { okResult, errorResult, normalizeError } from "../../tool-result.js";
+
+const ALCHEMY_X402_BASE_URL = "https://x402.alchemy.com";
+
+function getAlchemyFetch(): typeof fetch {
+  try {
+    return getX402Fetch();
+  } catch (error) {
+    throw new Error(
+      `Alchemy x402 requires an initialized x402 signer and funded wallet. Original error: ${(error as Error).message}`
+    );
+  }
+}
+
+function rpcUrl(chainNetwork: string): string {
+  return `${ALCHEMY_X402_BASE_URL}/${chainNetwork}/v2`;
+}
+
+function nftUrl(chainNetwork: string, path: string): string {
+  return `${ALCHEMY_X402_BASE_URL}/${chainNetwork}/nft/v3/${path}`;
+}
+
+function pricesUrl(path: string): string {
+  return `${ALCHEMY_X402_BASE_URL}/prices/v1/${path}`;
+}
+
+function portfolioUrl(path: string): string {
+  return `${ALCHEMY_X402_BASE_URL}/data/v1/${path}`;
+}
+
+function formatAlchemyError(status: number, statusText: string): string {
+  if (status === 402) {
+    return `Alchemy x402 payment failed: ${status} ${statusText}. Check wallet funding and x402 signer setup.`;
+  }
+  if (status === 401) {
+    return `Alchemy x402 authentication failed: ${status} ${statusText}. Check x402 auth/signing setup.`;
+  }
+  return `Alchemy API error: ${status} ${statusText}`;
+}
+
+function parseCommaSeparated(value: string | null | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+async function postJson(url: string, body: unknown) {
+  const fetchImpl = getAlchemyFetch();
+  const res = await fetchImpl(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) {
+    throw new Error(formatAlchemyError(res.status, res.statusText));
+  }
+  return res.json();
+}
+
+async function getJson(url: string) {
+  const fetchImpl = getAlchemyFetch();
+  const res = await fetchImpl(url, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) {
+    throw new Error(formatAlchemyError(res.status, res.statusText));
+  }
+  return res.json();
+}
+
+export function getAlchemyX402Tools() {
+  return [
+    new DynamicStructuredTool({
+      name: "alchemy_get_token_balances",
+      description:
+        "Get token balances for a wallet using Alchemy via x402 pay-per-request.",
+      schema: z.object({
+        chainNetwork: z.string().describe("Alchemy network slug, e.g. 'eth-mainnet', 'base-mainnet', 'polygon-mainnet'"),
+        address: z.string().describe("Wallet address to inspect"),
+        tokenSpec: z
+          .string()
+          .optional()
+          .nullable()
+          .describe("Use 'erc20', 'NATIVE_TOKEN', or a comma-separated list of contract addresses (default: erc20)"),
+        maxCount: z.number().optional().nullable().describe("Maximum results per page (max 100)"),
+        pageKey: z.string().optional().nullable().describe("Pagination cursor from a previous call"),
+      }),
+      func: async ({ chainNetwork, address, tokenSpec, maxCount, pageKey }) => {
+        try {
+          const url = rpcUrl(chainNetwork);
+          const parsedTokenSpec = parseCommaSeparated(tokenSpec);
+          const params: unknown[] = [
+            address,
+            parsedTokenSpec.length > 1 ? parsedTokenSpec : parsedTokenSpec[0] || "erc20",
+          ];
+          const options: Record<string, unknown> = {};
+          if (maxCount !== undefined && maxCount !== null) options.maxCount = maxCount;
+          if (pageKey) options.pageKey = pageKey;
+          if (Object.keys(options).length > 0) params.push(options);
+
+          const data = await postJson(url, {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "alchemy_getTokenBalances",
+            params,
+          });
+          return okResult({ data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "alchemy_get_token_metadata",
+      description:
+        "Get token metadata (name, symbol, decimals, logo) from Alchemy via x402 pay-per-request.",
+      schema: z.object({
+        chainNetwork: z.string().describe("Alchemy network slug, e.g. 'eth-mainnet', 'base-mainnet'"),
+        contractAddress: z.string().describe("ERC-20 contract address"),
+      }),
+      func: async ({ chainNetwork, contractAddress }) => {
+        try {
+          const url = rpcUrl(chainNetwork);
+          const data = await postJson(url, {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "alchemy_getTokenMetadata",
+            params: [contractAddress],
+          });
+          return okResult({ data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "alchemy_get_asset_transfers",
+      description:
+        "Query historical transfers via Alchemy Transfers API using x402 pay-per-request.",
+      schema: z.object({
+        chainNetwork: z.string().describe("Alchemy network slug, e.g. 'eth-mainnet', 'base-mainnet'"),
+        fromAddress: z.string().optional().nullable().describe("Sender address filter"),
+        toAddress: z.string().optional().nullable().describe("Recipient address filter"),
+        fromBlock: z.string().optional().nullable().describe("Start block, hex or 'latest'"),
+        toBlock: z.string().optional().nullable().describe("End block, hex, 'latest', or 'indexed'"),
+        categories: z
+          .string()
+          .optional()
+          .nullable()
+          .describe("Comma-separated categories: external, internal, erc20, erc721, erc1155, specialnft"),
+        contractAddresses: z
+          .string()
+          .optional()
+          .nullable()
+          .describe("Optional comma-separated contract addresses"),
+        maxCount: z.string().optional().nullable().describe("Max results per page in hex, e.g. 0x32"),
+        pageKey: z.string().optional().nullable().describe("Pagination cursor"),
+        order: z.enum(["asc", "desc"]).optional().nullable().describe("Sort order"),
+        withMetadata: z.boolean().optional().nullable().describe("Include block timestamp metadata"),
+      }),
+      func: async ({
+        chainNetwork,
+        fromAddress,
+        toAddress,
+        fromBlock,
+        toBlock,
+        categories,
+        contractAddresses,
+        maxCount,
+        pageKey,
+        order,
+        withMetadata,
+      }) => {
+        try {
+          const url = rpcUrl(chainNetwork);
+          const params: Record<string, unknown> = {
+            fromBlock: fromBlock || "0x0",
+            toBlock: toBlock || "latest",
+            category: parseCommaSeparated(categories).length > 0 ? parseCommaSeparated(categories) : ["external", "erc20"],
+          };
+          if (fromAddress) params.fromAddress = fromAddress;
+          if (toAddress) params.toAddress = toAddress;
+          const contracts = parseCommaSeparated(contractAddresses);
+          if (contracts.length > 0) params.contractAddresses = contracts;
+          if (maxCount) params.maxCount = maxCount;
+          if (pageKey) params.pageKey = pageKey;
+          if (order) params.order = order;
+          if (withMetadata !== undefined && withMetadata !== null) params.withMetadata = withMetadata;
+
+          const data = await postJson(url, {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "alchemy_getAssetTransfers",
+            params: [params],
+          });
+          return okResult({ data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "alchemy_get_nfts_for_owner",
+      description:
+        "Get NFTs owned by an address using Alchemy NFT API via x402 pay-per-request.",
+      schema: z.object({
+        chainNetwork: z.string().describe("Alchemy network slug, e.g. 'eth-mainnet', 'base-mainnet'"),
+        owner: z.string().describe("Owner wallet address"),
+        contractAddresses: z
+          .string()
+          .optional()
+          .nullable()
+          .describe("Optional comma-separated contract addresses to filter"),
+        pageSize: z.number().optional().nullable().describe("Results per page (max 100)"),
+        pageKey: z.string().optional().nullable().describe("Pagination cursor"),
+        withMetadata: z.boolean().optional().nullable().describe("Include NFT metadata"),
+        orderBy: z.string().optional().nullable().describe("Optional orderBy value, e.g. transferTime"),
+      }),
+      func: async ({ chainNetwork, owner, contractAddresses, pageSize, pageKey, withMetadata, orderBy }) => {
+        try {
+          const params = new URLSearchParams({ owner });
+          for (const contractAddress of parseCommaSeparated(contractAddresses)) {
+            params.append("contractAddresses[]", contractAddress);
+          }
+          if (pageSize !== undefined && pageSize !== null) params.set("pageSize", String(pageSize));
+          if (pageKey) params.set("pageKey", pageKey);
+          if (withMetadata !== undefined && withMetadata !== null) params.set("withMetadata", String(withMetadata));
+          if (orderBy) params.set("orderBy", orderBy);
+
+          const url = `${nftUrl(chainNetwork, "getNFTsForOwner")}?${params.toString()}`;
+          const data = await getJson(url);
+          return okResult({ data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "alchemy_get_token_prices_by_symbol",
+      description:
+        "Get current token prices by symbol from Alchemy Prices API via x402 pay-per-request.",
+      schema: z.object({
+        symbols: z.string().describe("Comma-separated token symbols, e.g. 'ETH,BTC,USDC'"),
+      }),
+      func: async ({ symbols }) => {
+        try {
+          const params = new URLSearchParams();
+          for (const symbol of parseCommaSeparated(symbols)) {
+            params.append("symbols", symbol);
+          }
+          const url = `${pricesUrl("tokens/by-symbol")}?${params.toString()}`;
+          const data = await getJson(url);
+          return okResult({ data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "alchemy_get_portfolio_tokens_by_address",
+      description:
+        "Get multi-network token balances, prices, and metadata for an address using Alchemy Portfolio APIs via x402 pay-per-request.",
+      schema: z.object({
+        address: z.string().describe("Wallet address to inspect"),
+        networks: z
+          .string()
+          .describe("Comma-separated network slugs, e.g. 'base-mainnet,eth-mainnet,arb-mainnet'"),
+        withMetadata: z.boolean().optional().nullable().describe("Include token metadata"),
+        withPrices: z.boolean().optional().nullable().describe("Include token prices"),
+        includeNativeTokens: z.boolean().optional().nullable().describe("Include native tokens"),
+        includeErc20Tokens: z.boolean().optional().nullable().describe("Include ERC-20 tokens"),
+        pageKey: z.string().optional().nullable().describe("Pagination cursor"),
+      }),
+      func: async ({
+        address,
+        networks,
+        withMetadata,
+        withPrices,
+        includeNativeTokens,
+        includeErc20Tokens,
+        pageKey,
+      }) => {
+        try {
+          const data = await postJson(portfolioUrl("assets/tokens/by-address"), {
+            addresses: [
+              {
+                address,
+                networks: parseCommaSeparated(networks),
+              },
+            ],
+            withMetadata: withMetadata ?? true,
+            withPrices: withPrices ?? true,
+            includeNativeTokens: includeNativeTokens ?? true,
+            includeErc20Tokens: includeErc20Tokens ?? true,
+            ...(pageKey ? { pageKey } : {}),
+          });
+          return okResult({ data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+  ];
+}

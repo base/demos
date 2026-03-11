@@ -1,0 +1,80 @@
+import { MultiServerMCPClient } from "@langchain/mcp-adapters";
+
+let cachedTools: any[] | null = null;
+let mcpClient: MultiServerMCPClient | null = null;
+let redeemedInviteCode: string | null = null;
+
+function matchesToolName(tool: any, baseName: string): boolean {
+  const name = String(tool?.name ?? "");
+  return name === baseName || name.endsWith(`__${baseName}`);
+}
+
+async function maybeRedeemInviteCode(tools: any[]): Promise<void> {
+  const inviteCode = process.env.AGENTCASH_INVITE_CODE?.trim();
+  if (!inviteCode || redeemedInviteCode === inviteCode) return;
+
+  const redeemTool = tools.find((tool) => matchesToolName(tool, "redeem_invite"));
+  if (!redeemTool) {
+    console.warn("[AgentCash MCP] AGENTCASH_INVITE_CODE is set, but redeem_invite tool was not found.");
+    return;
+  }
+
+  try {
+    if (typeof redeemTool.invoke === "function") {
+      await redeemTool.invoke({ code: inviteCode });
+    } else if (typeof redeemTool.call === "function") {
+      await redeemTool.call({ code: inviteCode });
+    } else {
+      throw new Error("redeem_invite tool does not expose invoke/call");
+    }
+    redeemedInviteCode = inviteCode;
+    console.log("[AgentCash MCP] Invite code redeemed successfully.");
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (/already|redeem|claimed|used/i.test(msg)) {
+      redeemedInviteCode = inviteCode;
+      console.log(`[AgentCash MCP] Invite code not redeemed: ${msg}`);
+      return;
+    }
+    console.warn(`[AgentCash MCP] Failed to redeem invite code: ${msg}`);
+  }
+}
+
+export async function getAgentcashMcpTools(): Promise<any[]> {
+  if (cachedTools) return cachedTools;
+
+  mcpClient = new MultiServerMCPClient({
+    mcpServers: {
+      agentcash: {
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "agentcash@latest"],
+      },
+    },
+  });
+
+  try {
+    const tools = await mcpClient.getTools();
+    await maybeRedeemInviteCode(tools);
+    cachedTools = tools;
+    console.log(`[AgentCash MCP] Loaded ${tools.length} tools from agentcash MCP server`);
+    return tools;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to connect to AgentCash MCP server: ${msg}. Ensure Node.js can run 'npx -y agentcash@latest' and that network access is available.`
+    );
+  }
+}
+
+process.on("exit", () => {
+  mcpClient?.close().catch(() => {});
+});
+process.on("SIGINT", () => {
+  mcpClient?.close().catch(() => {});
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  mcpClient?.close().catch(() => {});
+  process.exit(0);
+});

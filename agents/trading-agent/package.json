@@ -1,0 +1,39 @@
+{
+  "name": "create-trading-agent",
+  "version": "0.1.0",
+  "description": "CLI tool to scaffold LangChain trading agents on Base",
+  "type": "module",
+  "bin": {
+    "create-trading-agent": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "trading",
+    "agent",
+    "langchain",
+    "base",
+    "defi",
+    "scaffold",
+    "cli"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.9.1",
+    "handlebars": "^4.7.8",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.2"
+  }
+}

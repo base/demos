@@ -1,0 +1,262 @@
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import {
+  encodeFunctionData,
+  formatUnits,
+  parseAbi,
+  parseUnits,
+  type Address,
+} from "viem";
+import { okResult, errorResult, normalizeError } from "../../tool-result.js";
+
+// Aerodrome Router on Base
+const AERODROME_ROUTER = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43" as Address;
+const AERODROME_FACTORY = "0x420DD381b31aEf6683db6B902084cB0FFECe40Da" as Address;
+
+const ROUTER_ABI = parseAbi([
+  "function getAmountsOut(uint256 amountIn, (address from,address to,bool stable,address factory)[] routes) view returns (uint256[] amounts)",
+  "function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, (address from,address to,bool stable,address factory)[] routes, address to, uint256 deadline) returns (uint256[] amounts)",
+]);
+
+const ERC20_ABI = parseAbi([
+  "function allowance(address owner, address spender) view returns (uint256)",
+]);
+
+const TOKENS: Record<string, { address: Address; decimals: number }> = {
+  WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
+  USDC: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
+  USDbC: { address: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", decimals: 6 },
+  DAI: { address: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", decimals: 18 },
+};
+
+function resolveToken(symbol: string): { address: Address; decimals: number } | null {
+  const token = TOKENS[symbol.toUpperCase()];
+  if (token) return token;
+  if (/^0x[0-9a-fA-F]{40}$/.test(symbol)) return { address: symbol as Address, decimals: 18 };
+  return null;
+}
+
+async function quoteRoute(
+  wallet: any,
+  amountInRaw: bigint,
+  tokenIn: Address,
+  tokenOut: Address,
+  stable: boolean
+): Promise<bigint | null> {
+  try {
+    const amounts = await wallet.publicClient.readContract({
+      address: AERODROME_ROUTER,
+      abi: ROUTER_ABI,
+      functionName: "getAmountsOut",
+      args: [
+        amountInRaw,
+        [{ from: tokenIn, to: tokenOut, stable, factory: AERODROME_FACTORY }],
+      ],
+    });
+    return amounts?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function getAerodromeTools(wallet: any) {
+  return [
+    new DynamicStructuredTool({
+      name: "aerodrome_get_quote",
+      description:
+        "Get a live Aerodrome quote on Base. Tests both stable and volatile routes and returns the better output.",
+      schema: z.object({
+        tokenIn: z.string().describe("Input token symbol or address"),
+        tokenOut: z.string().describe("Output token symbol or address"),
+        amountIn: z.string().describe("Input amount in human-readable units"),
+      }),
+      func: async ({ tokenIn, tokenOut, amountIn }) => {
+        try {
+          if (!wallet?.publicClient) return errorResult("Wallet adapter does not expose a public client.");
+          const inToken = resolveToken(tokenIn);
+          const outToken = resolveToken(tokenOut);
+          if (!inToken || !outToken) {
+            return errorResult(`Unknown token. Available: ${Object.keys(TOKENS).join(", ")}`);
+          }
+
+          const amountInRaw = parseUnits(amountIn, inToken.decimals);
+          const [stableOut, volatileOut] = await Promise.all([
+            quoteRoute(wallet, amountInRaw, inToken.address, outToken.address, true),
+            quoteRoute(wallet, amountInRaw, inToken.address, outToken.address, false),
+          ]);
+
+          const candidates = [
+            stableOut ? { stable: true, amountOutRaw: stableOut } : null,
+            volatileOut ? { stable: false, amountOutRaw: volatileOut } : null,
+          ].filter(Boolean) as Array<{ stable: boolean; amountOutRaw: bigint }>;
+
+          if (candidates.length === 0) {
+            return errorResult("No Aerodrome route was quotable for this pair.");
+          }
+
+          const best = candidates.sort((a, b) => (a.amountOutRaw > b.amountOutRaw ? -1 : 1))[0];
+          return okResult({
+            tokenIn: inToken.address,
+            tokenOut: outToken.address,
+            amountIn,
+            amountOut: formatUnits(best.amountOutRaw, outToken.decimals),
+            stable: best.stable,
+            router: AERODROME_ROUTER,
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "aerodrome_check_approval",
+      description:
+        "Check whether the wallet has enough ERC20 allowance for the Aerodrome router.",
+      schema: z.object({
+        token: z.string().describe("Token symbol or address"),
+        amountIn: z.string().describe("Amount in human-readable units"),
+        executeIfNeeded: z.boolean().optional().nullable().default(false).describe("If true, submit an approval transaction"),
+      }),
+      func: async ({ token, amountIn, executeIfNeeded }) => {
+        try {
+          if (!wallet?.publicClient || !wallet?.address) {
+            return errorResult("Wallet adapter is missing address or public client.");
+          }
+          const resolved = resolveToken(token);
+          if (!resolved) {
+            return errorResult(`Unknown token. Available: ${Object.keys(TOKENS).join(", ")}`);
+          }
+          const required = parseUnits(amountIn, resolved.decimals);
+          const current = await wallet.publicClient.readContract({
+            address: resolved.address,
+            abi: ERC20_ABI,
+            functionName: "allowance",
+            args: [wallet.address, AERODROME_ROUTER],
+          });
+
+          if (current >= required) {
+            return okResult({
+              needsApproval: false,
+              currentAllowance: current.toString(),
+              requiredAllowance: required.toString(),
+            });
+          }
+
+          if (executeIfNeeded) {
+            if (typeof wallet.approveErc20 !== "function") {
+              return errorResult("Wallet adapter does not support direct ERC20 approvals.");
+            }
+            return JSON.stringify(
+              await wallet.approveErc20({
+                token: resolved.address,
+                spender: AERODROME_ROUTER,
+                amountBaseUnits: required.toString(),
+              })
+            );
+          }
+
+          return okResult({
+            needsApproval: true,
+            currentAllowance: current.toString(),
+            requiredAllowance: required.toString(),
+            spender: AERODROME_ROUTER,
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "aerodrome_swap",
+      description:
+        "Execute a token swap on Aerodrome and return a verified transaction hash when successful.",
+      schema: z.object({
+        tokenIn: z.string().describe("Input token symbol or address"),
+        tokenOut: z.string().describe("Output token symbol or address"),
+        amountIn: z.string().describe("Input amount in human-readable units"),
+        slippagePct: z.number().optional().nullable().default(0.5).describe("Maximum slippage percentage"),
+        forceStable: z.boolean().nullable().default(null).describe("Force stable route selection"),
+      }),
+      func: async ({ tokenIn, tokenOut, amountIn, slippagePct, forceStable }) => {
+        try {
+          if (!wallet?.publicClient || !wallet?.address || typeof wallet.executeTransaction !== "function") {
+            return errorResult("Wallet adapter does not support Aerodrome execution.");
+          }
+          const inToken = resolveToken(tokenIn);
+          const outToken = resolveToken(tokenOut);
+          if (!inToken || !outToken) {
+            return errorResult(`Unknown token. Available: ${Object.keys(TOKENS).join(", ")}`);
+          }
+
+          const amountInRaw = parseUnits(amountIn, inToken.decimals);
+          const stableOut = forceStable === false
+            ? null
+            : await quoteRoute(wallet, amountInRaw, inToken.address, outToken.address, true);
+          const volatileOut = forceStable === true
+            ? null
+            : await quoteRoute(wallet, amountInRaw, inToken.address, outToken.address, false);
+
+          const candidates = [
+            stableOut ? { stable: true, amountOutRaw: stableOut } : null,
+            volatileOut ? { stable: false, amountOutRaw: volatileOut } : null,
+          ].filter(Boolean) as Array<{ stable: boolean; amountOutRaw: bigint }>;
+
+          if (candidates.length === 0) {
+            return errorResult("No Aerodrome route was quotable for this pair.");
+          }
+
+          const best = candidates.sort((a, b) => (a.amountOutRaw > b.amountOutRaw ? -1 : 1))[0];
+          const allowance = await wallet.publicClient.readContract({
+            address: inToken.address,
+            abi: ERC20_ABI,
+            functionName: "allowance",
+            args: [wallet.address, AERODROME_ROUTER],
+          });
+          if (allowance < amountInRaw) {
+            return errorResult("Token approval is required before swapping.", {
+              needsApproval: true,
+              spender: AERODROME_ROUTER,
+              currentAllowance: allowance.toString(),
+              requiredAllowance: amountInRaw.toString(),
+            });
+          }
+
+          const slippageBps = Math.round((slippagePct ?? 0.5) * 100);
+          const amountOutMin =
+            (best.amountOutRaw * BigInt(Math.max(0, 10000 - slippageBps))) / 10000n;
+          const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 5);
+          const routes = [
+            {
+              from: inToken.address,
+              to: outToken.address,
+              stable: best.stable,
+              factory: AERODROME_FACTORY,
+            },
+          ];
+          const data = encodeFunctionData({
+            abi: ROUTER_ABI,
+            functionName: "swapExactTokensForTokens",
+            args: [amountInRaw, amountOutMin, routes, wallet.address, deadline],
+          });
+
+          const execution = await wallet.executeTransaction({
+            to: AERODROME_ROUTER,
+            data,
+            valueWei: "0",
+          });
+
+          return JSON.stringify({
+            ...execution,
+            protocol: "Aerodrome",
+            stable: best.stable,
+            amountIn,
+            amountOutQuoted: formatUnits(best.amountOutRaw, outToken.decimals),
+            amountOutMin: formatUnits(amountOutMin, outToken.decimals),
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+  ];
+}

@@ -1,0 +1,97 @@
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import { getX402Fetch } from "./client.js";
+import { okResult, errorResult, normalizeError } from "../../tool-result.js";
+
+const COINGECKO_X402_URL = "https://pro-api.coingecko.com/api/v3/x402";
+
+function formatApiError(status: number, statusText: string): string {
+  if (status === 402) {
+    return `CoinGecko x402 payment failed: ${status} ${statusText}. Check wallet funding and x402 signer setup.`;
+  }
+  return `CoinGecko API error: ${status} ${statusText}`;
+}
+
+export function getCoinGeckoTools() {
+  return [
+    new DynamicStructuredTool({
+      name: "coingecko_get_price",
+      description:
+        "Get current price and market data for a token via CoinGecko (x402 pay-per-request).",
+      schema: z.object({
+        token_id: z
+          .string()
+          .describe("CoinGecko token id, e.g. 'ethereum', 'bitcoin', 'usd-coin'"),
+      }),
+      func: async ({ token_id }) => {
+        try {
+          const fetchWithPayment = getX402Fetch();
+          const url = `${COINGECKO_X402_URL}/simple/price?ids=${token_id}&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true`;
+          const res = await fetchWithPayment(url, { signal: AbortSignal.timeout(10000) });
+          if (!res.ok) {
+            return errorResult(formatApiError(res.status, res.statusText));
+          }
+          const data = await res.json();
+          return okResult({ data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "coingecko_get_market_chart",
+      description:
+        "Get historical market data (price, volume, market cap) for a token via CoinGecko (x402 pay-per-request).",
+      schema: z.object({
+        token_id: z.string().describe("CoinGecko token id"),
+        days: z.number().describe("Number of days of data (1, 7, 30, 90, 365)"),
+      }),
+      func: async ({ token_id, days }) => {
+        try {
+          const fetchWithPayment = getX402Fetch();
+          const url = `${COINGECKO_X402_URL}/coins/${token_id}/market_chart?vs_currency=usd&days=${days}`;
+          const res = await fetchWithPayment(url, { signal: AbortSignal.timeout(10000) });
+          if (!res.ok) {
+            return errorResult(formatApiError(res.status, res.statusText));
+          }
+          const data = await res.json();
+          const prices = data.prices ?? [];
+          const latest = prices[prices.length - 1];
+          const oldest = prices[0];
+          return okResult({
+            token_id,
+            days,
+            currentPrice: latest?.[1],
+            startPrice: oldest?.[1],
+            priceChange: latest && oldest ? ((latest[1] - oldest[1]) / oldest[1] * 100).toFixed(2) + "%" : "N/A",
+            dataPoints: prices.length,
+          });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "coingecko_search",
+      description:
+        "Search CoinGecko for token ids by name or symbol via x402.",
+      schema: z.object({
+        query: z.string().describe("Search query, e.g. 'ethereum' or 'pepe'"),
+      }),
+      func: async ({ query }) => {
+        try {
+          const fetchWithPayment = getX402Fetch();
+          const url = `${COINGECKO_X402_URL}/search?query=${encodeURIComponent(query)}`;
+          const res = await fetchWithPayment(url, { signal: AbortSignal.timeout(10000) });
+          if (!res.ok) {
+            return errorResult(formatApiError(res.status, res.statusText));
+          }
+          const data = await res.json();
+          return okResult({ data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+  ];
+}

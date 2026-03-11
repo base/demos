@@ -1,0 +1,140 @@
+# {{name}}
+
+A CLI that generates a fully configured trading agent from a plain-English strategy.
+
+## What Is This
+
+This project runs a LangChain trading agent on Base using your selected wallet/provider setup.
+
+## Configuration
+
+| Setting | Value |
+|---------|-------|
+| Network | Base Mainnet (8453) |
+| Wallet | {{wallet}} |
+| LLM | {{model}} |
+| Test mode | {{testMode}} |
+| Tools | {{#each selectedToolNames}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}{{#unless hasAnyTools}}none{{/unless}} |
+
+## Requirements
+
+- Node.js 20+
+- A funded wallet for live trading
+- `.env` credentials
+- Base mainnet funding for gas + trading capital
+
+## Setup
+
+```bash
+npm install
+# .env is already created by the scaffolder
+# fill in any missing wallet/provider keys
+```
+
+{{#if isBankr}}
+## Bankr API Key Setup
+
+1. Create your key at `bankr.bot`.
+2. Turn **Read Only** OFF.
+3. Set `BANKR_API_KEY` in `.env`.
+
+If Read Only is ON, execution calls will fail with auth/permission errors.
+{{/if}}
+
+{{#if isCdpServerWallet}}
+## CDP Server Wallet Key Setup
+
+1. Create CDP API credentials in `portal.cdp.coinbase.com` and copy:
+   - `CDP_API_KEY_ID`
+   - `CDP_API_KEY_SECRET`
+2. Create/copy your **Wallet Auth Key** (base64 secret) and set `CDP_WALLET_SECRET`.
+3. Use ECDSA-compatible credentials for trading SDK compatibility.
+
+`CDP_WALLET_SECRET` is different from `CDP_API_KEY_SECRET`.
+{{/if}}
+
+{{#if isSponge}}
+## Sponge API Key Setup
+
+1. Register at `https://paysponge.com/`.
+2. Create a `SPONGE_API_KEY`.
+3. Set `SPONGE_API_KEY` in `.env`.
+
+Sponge handles wallet execution natively for swaps, bridging, Polymarket, Hyperliquid, and related flows.
+{{/if}}
+
+{{#if hasVirtuals}}
+## Virtuals ACP Setup
+
+1. Install the ACP CLI from `https://github.com/Virtual-Protocol/openclaw-acp`.
+2. Run `acp setup` once to authenticate and provision the agent wallet/profile.
+3. Leave `VIRTUALS_ACP_BIN=acp` in `.env`, or point it at a different ACP executable path.
+
+The built-in `virtuals` tool exposes ACP marketplace browsing, job creation, job status checks, and wallet balance lookup for helper-agent delegation.
+{{/if}}
+
+## Running The Agent
+
+```bash
+npm start
+```
+
+On first start, the agent prints:
+- Wallet identity (`[WALLET] ...`)
+- Current funding status (`[BALANCE] ...`)
+- A funding warning + short poll loop if balances are missing
+- Strategy preview and a `[READY]` prompt
+
+## Interacting With The Agent
+
+Type plain-English messages at any time while it is running:
+- `"be more conservative with position size"`
+- `"focus only on ETH/USDC today"`
+- `"pause execution unless setup is high conviction"`
+
+Your input is injected into the next cycle as a high-priority user directive; pressing Enter also wakes the loop early.
+
+## Terminal Output
+
+Each cycle is rendered in a compact structure:
+- `STATUS`
+- `ACTION`
+- `RATIONALE`
+
+When transaction hashes are detected, Basescan links are printed automatically.
+
+The agent should never claim a trade succeeded unless it has a verified transaction hash.
+
+## Strategy + Guardrails
+
+- Strategy source: `prompts/strategy.md`
+- Guardrails source: `src/guardrails.ts`
+- Generated guardrail defaults:
+  - Slippage tolerance: {{guardrails.slippagePct}}%
+  - Stop-loss threshold: {{guardrails.stopLossPct}}%
+  - Max position size: {{guardrails.maxPositionPct}}% of wallet
+{{#if testMode}}
+
+## Test Mode
+
+This scaffold was generated with `TEST_MODE=true`.
+
+- The default loop interval is shorter.
+- Runtime guardrails are relaxed slightly for small live tests.
+- Use small balances only, such as roughly $10 USDC.
+{{/if}}
+
+## Project Structure
+
+```text
+src/
+  agent.ts
+  wallet.ts
+  guardrails.ts
+{{#if hasAnyTools}}
+  tools/
+    index.ts
+{{/if}}
+prompts/
+  strategy.md
+```

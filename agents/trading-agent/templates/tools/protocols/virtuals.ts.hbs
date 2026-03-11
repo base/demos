@@ -1,0 +1,153 @@
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { okResult, errorResult, normalizeError } from "../../tool-result.js";
+
+const execFileAsync = promisify(execFile);
+const ACP_TIMEOUT_MS = 30000;
+const ACP_MAX_BUFFER = 1024 * 1024;
+
+function getAcpBin(): string {
+  return process.env.VIRTUALS_ACP_BIN?.trim() || "acp";
+}
+
+function parseRequirements(requirementsJson: string | null | undefined): string | null {
+  if (!requirementsJson || !requirementsJson.trim()) return null;
+  const parsed = JSON.parse(requirementsJson);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("requirementsJson must be a JSON object.");
+  }
+  return JSON.stringify(parsed);
+}
+
+async function runAcpJson(args: string[]) {
+  const bin = getAcpBin();
+
+  try {
+    const { stdout, stderr } = await execFileAsync(bin, [...args, "--json"], {
+      timeout: ACP_TIMEOUT_MS,
+      maxBuffer: ACP_MAX_BUFFER,
+      env: process.env,
+    });
+
+    const trimmed = stdout.trim();
+    if (!trimmed) {
+      throw new Error(stderr?.trim() || "ACP CLI returned empty output.");
+    }
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return {
+        raw: trimmed,
+        stderr: stderr?.trim() || undefined,
+      };
+    }
+  } catch (error: any) {
+    if (error?.code === "ENOENT") {
+      throw new Error(
+        "Virtuals ACP CLI was not found. Install it and ensure `acp` is on PATH, or set VIRTUALS_ACP_BIN to the ACP executable path."
+      );
+    }
+
+    const stdout = typeof error?.stdout === "string" ? error.stdout.trim() : "";
+    const stderr = typeof error?.stderr === "string" ? error.stderr.trim() : "";
+    const details = stderr || stdout || normalizeError(error);
+    throw new Error(`ACP command failed: ${details}`);
+  }
+}
+
+export function getVirtualsTools() {
+  return [
+    new DynamicStructuredTool({
+      name: "virtuals_browse_agents",
+      description: "Search the Virtuals ACP marketplace for helper agents matching a query.",
+      schema: z.object({
+        query: z.string().min(1).describe("Search query such as 'trading', 'research', or 'market analysis'"),
+      }),
+      func: async ({ query }) => {
+        try {
+          const data = await runAcpJson(["browse", query]);
+          return okResult({ query, data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "virtuals_create_job",
+      description: "Create a Virtuals ACP job with a helper agent offering.",
+      schema: z.object({
+        wallet: z.string().min(1).describe("Helper agent wallet address"),
+        offering: z.string().min(1).describe("Offering name to invoke on the helper agent"),
+        requirementsJson: z
+          .string()
+          .nullable()
+          .default(null)
+          .describe("Optional JSON object string describing the job requirements"),
+      }),
+      func: async ({ wallet, offering, requirementsJson }) => {
+        try {
+          const args = ["job", "create", wallet, offering];
+          const requirements = parseRequirements(requirementsJson);
+          if (requirements) {
+            args.push("--requirements", requirements);
+          }
+
+          const data = await runAcpJson(args);
+          return okResult({ wallet, offering, data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "virtuals_job_status",
+      description: "Check the status of a Virtuals ACP job.",
+      schema: z.object({
+        jobId: z.string().min(1).describe("ACP job ID"),
+      }),
+      func: async ({ jobId }) => {
+        try {
+          const data = await runAcpJson(["job", "status", jobId]);
+          return okResult({ jobId, data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "virtuals_active_jobs",
+      description: "List active Virtuals ACP jobs for the current agent.",
+      schema: z.object({
+        page: z.number().int().positive().nullable().default(null).describe("Optional page number"),
+        pageSize: z.number().int().positive().nullable().default(null).describe("Optional page size"),
+      }),
+      func: async ({ page, pageSize }) => {
+        try {
+          const args = ["job", "active"];
+          if (page !== null) args.push(String(page));
+          if (pageSize !== null) args.push(String(pageSize));
+          const data = await runAcpJson(args);
+          return okResult({ data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "virtuals_wallet_balance",
+      description: "Get the current agent wallet balances from Virtuals ACP.",
+      schema: z.object({}),
+      func: async () => {
+        try {
+          const data = await runAcpJson(["wallet", "balance"]);
+          return okResult({ data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+  ];
+}

@@ -1,0 +1,27 @@
+export interface ToolResult {
+  success: boolean;
+  txHash?: string;
+  verified?: boolean;
+  error?: string;
+  [key: string]: unknown;
+}
+
+export function okResult(data: Record<string, unknown> = {}): string {
+  return JSON.stringify({ success: true, ...data });
+}
+
+export function errorResult(
+  error: string,
+  data: Record<string, unknown> = {}
+): string {
+  return JSON.stringify({ success: false, error, ...data });
+}
+
+export function normalizeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return typeof error === "string" ? error : "Unknown error";
+}
+
+export function isHexTxHash(value: unknown): value is `0x${string}` {
+  return typeof value === "string" && /^0x[a-fA-F0-9]{64}$/.test(value);
+}
