@@ -30,19 +30,9 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Fetching trading-agent scaffold..."
-clone_branch() {
-  local ref="$1"
-  git clone --depth 1 --branch "$ref" "$REPO_URL" "$workdir/repo" >/dev/null 2>&1
-}
-
-if ! clone_branch "$REPO_REF"; then
-  if [ "$REPO_REF" = "master" ]; then
-    echo "Falling back to main..."
-    clone_branch "main"
-  else
-    echo "Failed to clone branch '$REPO_REF' from $REPO_URL." >&2
-    exit 1
-  fi
+if ! git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$workdir/repo" >/dev/null 2>&1; then
+  echo "Failed to clone branch '$REPO_REF' from $REPO_URL." >&2
+  exit 1
 fi
 
 cd "$workdir/repo"
@@ -56,4 +46,8 @@ echo "Building CLI..."
 npm run build
 
 echo "Launching scaffold..."
-node dist/index.js "$@"
+if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+  node dist/index.js "$@" < /dev/tty > /dev/tty 2>&1
+else
+  node dist/index.js "$@"
+fi

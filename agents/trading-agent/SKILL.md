@@ -19,6 +19,12 @@ You can use this scaffold in two supported ways without publishing it to npm.
 curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh | bash
 ```
 
+For interactive mode, prefer:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh)
+```
+
 Pass CLI args through with `bash -s --`:
 
 ```bash
@@ -128,7 +134,7 @@ Prints the absolute path of the generated project directory to stdout. The gener
 
 ## Notes
 
-- `install.sh` clones `master` by default and falls back to `main` if needed.
+- `install.sh` clones `master`.
 - For `cdp-server-wallet`, wallet creation/get happens on first agent run, then wallet address is persisted and printed so the user can fund it.
 - First-run funding checks:
   - `cdp-server-wallet`: checks Base ETH and USDC.

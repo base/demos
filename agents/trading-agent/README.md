@@ -14,6 +14,12 @@ This is the shortest path for end users:
 curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh | bash
 ```
 
+For interactive mode, prefer process substitution so the CLI keeps direct access to your terminal:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh)
+```
+
 Pass CLI arguments through with `bash -s --`:
 
 ```bash
@@ -133,7 +139,7 @@ The config can be either a single object or an array to scaffold multiple agents
 
 ## Notes
 
-- `install.sh` defaults to cloning `master` and falls back to `main` if needed.
+- `install.sh` clones `master`.
 - The generated project path is printed to stdout after scaffolding completes.
 - For `cdp-server-wallet`, wallet creation or lookup happens on first agent run and the wallet address is printed for funding.
 - For `bankr` and `sponge`, built-in tool selection is limited to MCP tools. Execution is handled natively by those wallets, and the built-in x402 tool modules currently rely on the CDP wallet scaffold.

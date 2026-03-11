@@ -157,7 +157,7 @@ export function generate(config: ScaffoldConfig): string {
   // Render env files from the same template:
   // - .env.example always blank for secrets
   // - .env prefilled with the LLM key collected at scaffold time
-  const envTemplatePath = path.join(templatesDir, "base/.env.example.hbs");
+  const envTemplatePath = path.join(templatesDir, "base/env.example.hbs");
   const envExample = renderTemplate(envTemplatePath, { ...data, llmApiKey: "" });
   writeFile(path.join(outDir, ".env.example"), envExample);
   const envFile = renderTemplate(envTemplatePath, data);
