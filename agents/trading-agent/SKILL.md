@@ -9,10 +9,57 @@ description: Scaffold a complete LangChain trading agent on Base. Supports CDP S
 
 Generates a ready-to-run TypeScript LangChain agent project. The agent runs a continuous trading loop on Base using the strategy you provide.
 
+## Using the scaffold without npm publish
+
+You can use this scaffold in two supported ways without publishing it to npm.
+
+### Option 1: Run the install script directly
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh | bash
+```
+
+For interactive mode, prefer:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh)
+```
+
+Pass CLI args through with `bash -s --`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh | \
+  bash -s -- --no-interactive --config path/to/config.json
+```
+
+### Option 2: Clone the repo and run this package locally
+
+```bash
+git clone https://github.com/base/demos.git
+cd demos/agents/trading-agent
+npm install
+npm run build
+node dist/index.js
+```
+
+If you want to fetch mostly just this folder:
+
+```bash
+git clone --filter=blob:none --no-checkout https://github.com/base/demos.git
+cd demos
+git sparse-checkout init --cone
+git sparse-checkout set agents/trading-agent
+git checkout master
+cd agents/trading-agent
+npm install
+npm run build
+node dist/index.js
+```
+
 ## Interactive usage
 
 ```bash
-npx create-trading-agent
+node dist/index.js
 ```
 
 Walks through a prompt-driven onboarding flow: project name, wallet, skills, LLM, test mode, optional self-updating strategy, strategy, critique (with LLM-generated guardrails), and optional experimental custom tool generation.
@@ -22,7 +69,7 @@ Walks through a prompt-driven onboarding flow: project name, wallet, skills, LLM
 ### Simple (flags)
 
 ```bash
-npx create-trading-agent --no-interactive \
+node dist/index.js --no-interactive \
   --name <project-name> \
   --wallet <cdp-server-wallet|bankr|sponge> \
   --tools <comma-separated: uniswap,aerodrome,avantis,coingecko,coinmarketcap,alchemy-x402,agentcash-mcp,nansen-mcp,nansen-x402> \
@@ -35,7 +82,7 @@ npx create-trading-agent --no-interactive \
 ### Complex (JSON config)
 
 ```bash
-npx create-trading-agent --config path/to/config.json
+node dist/index.js --config path/to/config.json
 ```
 
 ## Config JSON schema
@@ -87,6 +134,7 @@ Prints the absolute path of the generated project directory to stdout. The gener
 
 ## Notes
 
+- `install.sh` clones `master`.
 - For `cdp-server-wallet`, wallet creation/get happens on first agent run, then wallet address is persisted and printed so the user can fund it.
 - First-run funding checks:
   - `cdp-server-wallet`: checks Base ETH and USDC.

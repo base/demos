@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPO_URL="${TRADING_AGENT_REPO_URL:-https://github.com/base/demos.git}"
-REPO_REF="${TRADING_AGENT_REPO_REF:-main}"
+REPO_REF="${TRADING_AGENT_REPO_REF:-master}"
 PACKAGE_PATH="${TRADING_AGENT_PACKAGE_PATH:-agents/trading-agent}"
 
 if ! command -v git >/dev/null 2>&1; then
@@ -30,19 +30,9 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Fetching trading-agent scaffold..."
-clone_branch() {
-  local ref="$1"
-  git clone --depth 1 --branch "$ref" "$REPO_URL" "$workdir/repo" >/dev/null 2>&1
-}
-
-if ! clone_branch "$REPO_REF"; then
-  if [ "$REPO_REF" = "main" ]; then
-    echo "Falling back to master..."
-    clone_branch "master"
-  else
-    echo "Failed to clone branch '$REPO_REF' from $REPO_URL." >&2
-    exit 1
-  fi
+if ! git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$workdir/repo" >/dev/null 2>&1; then
+  echo "Failed to clone branch '$REPO_REF' from $REPO_URL." >&2
+  exit 1
 fi
 
 cd "$workdir/repo"
@@ -56,4 +46,8 @@ echo "Building CLI..."
 npm run build
 
 echo "Launching scaffold..."
-node dist/index.js "$@"
+if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+  node dist/index.js "$@" < /dev/tty > /dev/tty 2>&1
+else
+  node dist/index.js "$@"
+fi
