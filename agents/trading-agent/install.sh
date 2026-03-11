@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPO_URL="${TRADING_AGENT_REPO_URL:-https://github.com/base/demos.git}"
-REPO_REF="${TRADING_AGENT_REPO_REF:-main}"
+REPO_REF="${TRADING_AGENT_REPO_REF:-master}"
 PACKAGE_PATH="${TRADING_AGENT_PACKAGE_PATH:-agents/trading-agent}"
 
 if ! command -v git >/dev/null 2>&1; then
@@ -36,9 +36,9 @@ clone_branch() {
 }
 
 if ! clone_branch "$REPO_REF"; then
-  if [ "$REPO_REF" = "main" ]; then
-    echo "Falling back to master..."
-    clone_branch "master"
+  if [ "$REPO_REF" = "master" ]; then
+    echo "Falling back to main..."
+    clone_branch "main"
   else
     echo "Failed to clone branch '$REPO_REF' from $REPO_URL." >&2
     exit 1

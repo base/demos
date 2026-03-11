@@ -11,13 +11,13 @@ You can use the scaffold in two ways without publishing it to npm.
 This is the shortest path for end users:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/base/demos/main/agents/trading-agent/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh | bash
 ```
 
 Pass CLI arguments through with `bash -s --`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/base/demos/main/agents/trading-agent/install.sh | \
+curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh | \
   bash -s -- --no-interactive --config ./agent.json
 ```
 
@@ -48,7 +48,7 @@ git clone --filter=blob:none --no-checkout https://github.com/base/demos.git
 cd demos
 git sparse-checkout init --cone
 git sparse-checkout set agents/trading-agent
-git checkout main
+git checkout master
 cd agents/trading-agent
 npm install
 npm run build
@@ -133,7 +133,7 @@ The config can be either a single object or an array to scaffold multiple agents
 
 ## Notes
 
-- `install.sh` defaults to cloning `main` and falls back to `master` if needed.
+- `install.sh` defaults to cloning `master` and falls back to `main` if needed.
 - The generated project path is printed to stdout after scaffolding completes.
 - For `cdp-server-wallet`, wallet creation or lookup happens on first agent run and the wallet address is printed for funding.
 - For `bankr` and `sponge`, built-in tool selection is limited to MCP tools. Execution is handled natively by those wallets, and the built-in x402 tool modules currently rely on the CDP wallet scaffold.
