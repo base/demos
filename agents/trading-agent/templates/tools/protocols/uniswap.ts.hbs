@@ -1,0 +1,257 @@
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import { parseUnits, formatUnits, type Address } from "viem";
+import { okResult, errorResult, normalizeError } from "../../tool-result.js";
+
+const TRADING_API = "https://trade-api.gateway.uniswap.org/v1";
+const CHAIN_ID = parseInt(process.env.CHAIN_ID ?? "{{chainId}}");
+
+const TOKENS: Record<string, { address: Address; decimals: number }> = {
+  WETH:  { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
+  USDC:  { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
+  USDbC: { address: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", decimals: 6 },
+  DAI:   { address: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", decimals: 18 },
+};
+
+function resolveToken(symbol: string): { address: Address; decimals: number } | null {
+  const t = TOKENS[symbol.toUpperCase()];
+  if (t) return t;
+  if (/^0x[0-9a-fA-F]{40}$/.test(symbol)) return { address: symbol as Address, decimals: 18 };
+  return null;
+}
+
+function apiHeaders(): Record<string, string> {
+  const key = process.env.UNISWAP_API_KEY;
+  if (!key) throw new Error("UNISWAP_API_KEY is not set. Get one at https://hub.uniswap.org");
+  return { "Content-Type": "application/json", "x-api-key": key };
+}
+
+// Handles response shape across Trading API versions and routing types
+function extractAmountOut(q: any, outDecimals: number): string | null {
+  const raw =
+    q?.output?.amount ??       // new Trading API classic route
+    q?.quote ??                // old routing-api (nested quote.quote field)
+    q?.expectedAmountOut ??    // priority/dutch quotes
+    q?.orderInfo?.outputs?.[0]?.startAmount; // dutch v2
+  if (!raw) return null;
+  try {
+    return formatUnits(BigInt(raw), outDecimals);
+  } catch {
+    return null;
+  }
+}
+
+async function postQuote(body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: any; text: string }> {
+  const res = await fetch(`${TRADING_API}/quote`, {
+    method: "POST",
+    headers: apiHeaders(),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
+  });
+  const text = await res.text();
+  let data: any = null;
+  try { data = JSON.parse(text); } catch { /* non-JSON body */ }
+  return { ok: res.ok, status: res.status, data, text };
+}
+
+export function getUniswapTools(wallet: any) {
+  const walletAddress = wallet?.address;
+
+  return [
+    new DynamicStructuredTool({
+      name: "uniswap_get_quote",
+      description: "Get a live swap quote from Uniswap via the Trading API. Returns expected amountOut.",
+      schema: z.object({
+        tokenIn: z.string().describe("Input token symbol (WETH, USDC, DAI, USDbC) or contract address"),
+        tokenOut: z.string().describe("Output token symbol or contract address"),
+        amountIn: z.string().describe("Amount of input token in human-readable units (e.g. '0.1')"),
+      }),
+      func: async ({ tokenIn, tokenOut, amountIn }) => {
+        try {
+          const inToken = resolveToken(tokenIn);
+          const outToken = resolveToken(tokenOut);
+          if (!inToken || !outToken) {
+            return errorResult(`Unknown token. Available: ${Object.keys(TOKENS).join(", ")}`);
+          }
+          if (!walletAddress) {
+            return errorResult("Wallet address is unavailable for Uniswap quoting.");
+          }
+          const amountInRaw = parseUnits(amountIn, inToken.decimals).toString();
+
+          const { ok, status, data, text } = await postQuote({
+            type: "EXACT_INPUT",
+            amount: amountInRaw,
+            tokenIn: inToken.address,
+            tokenOut: outToken.address,
+            tokenInChainId: CHAIN_ID,
+            tokenOutChainId: CHAIN_ID,
+            swapper: walletAddress,
+            protocols: ["V2", "V3"],       // AMM only — compatible with slippageTolerance
+            routingPreference: "BEST_PRICE",
+            slippageTolerance: 0.5,
+          });
+
+          if (!ok) return errorResult(`HTTP ${status}`, { body: text });
+
+          const amountOut = extractAmountOut(data?.quote, outToken.decimals);
+          if (!amountOut) {
+            return errorResult("Could not extract amountOut", { rawResponse: data });
+          }
+          return okResult({
+            tokenIn: inToken.address,
+            tokenOut: outToken.address,
+            amountIn,
+            amountOut,
+            routing: data?.routing,
+          });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "uniswap_check_approval",
+      description: "Check if the wallet has sufficient token approval for a swap. Returns approval transaction if needed.",
+      schema: z.object({
+        token: z.string().describe("Token symbol or contract address"),
+        amountIn: z.string().describe("Amount in human-readable units"),
+        executeIfNeeded: z.boolean().optional().nullable().default(false).describe("If true, submit the approval transaction immediately"),
+      }),
+      func: async ({ token, amountIn, executeIfNeeded }) => {
+        try {
+          const t = resolveToken(token);
+          if (!t) return errorResult(`Unknown token. Available: ${Object.keys(TOKENS).join(", ")}`);
+          if (!walletAddress) return errorResult("Wallet address is unavailable for approval checks.");
+          const res = await fetch(`${TRADING_API}/check_approval`, {
+            method: "POST",
+            headers: apiHeaders(),
+            body: JSON.stringify({
+              walletAddress,
+              token: t.address,
+              amount: parseUnits(amountIn, t.decimals).toString(),
+              chainId: CHAIN_ID,
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          const text = await res.text();
+          if (!res.ok) return errorResult(`HTTP ${res.status}`, { body: text });
+          const data = JSON.parse(text);
+          if (!data.approval) {
+            return okResult({
+              needsApproval: false,
+              approvalTx: null,
+              message: "No approval needed.",
+            });
+          }
+
+          if (executeIfNeeded) {
+            if (typeof wallet.executeTransaction !== "function") {
+              return errorResult("Wallet adapter does not support direct approval execution.", {
+                approvalTx: data.approval,
+              });
+            }
+            const execution = await wallet.executeTransaction({
+              to: data.approval.to as `0x${string}`,
+              data: data.approval.data as `0x${string}`,
+              valueWei: data.approval.value ?? "0",
+            });
+            return JSON.stringify({
+              ...execution,
+              needsApproval: true,
+              executed: true,
+            });
+          }
+
+          return okResult({
+            needsApproval: true,
+            approvalTx: data.approval,
+            executed: false,
+            instruction: "Approval required before swapping.",
+          });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "uniswap_swap",
+      description: "Execute a swap via the Uniswap Trading API. Returns transaction calldata for cdp_send_transaction.",
+      schema: z.object({
+        tokenIn: z.string().describe("Input token symbol or contract address"),
+        tokenOut: z.string().describe("Output token symbol or contract address"),
+        amountIn: z.string().describe("Amount of input token in human-readable units"),
+        slippagePct: z.number().nullable().default(null).describe("Max slippage percentage (default: 0.5)"),
+      }),
+      func: async ({ tokenIn, tokenOut, amountIn, slippagePct }) => {
+        try {
+          const slip = slippagePct ?? 0.5;
+          const inToken = resolveToken(tokenIn);
+          const outToken = resolveToken(tokenOut);
+          if (!inToken || !outToken) {
+            return errorResult(`Unknown token. Available: ${Object.keys(TOKENS).join(", ")}`);
+          }
+          if (!walletAddress) {
+            return errorResult("Wallet address is unavailable for Uniswap swaps.");
+          }
+          if (typeof wallet.executeTransaction !== "function") {
+            return errorResult("Wallet adapter does not support direct transaction execution.");
+          }
+          const amountInRaw = parseUnits(amountIn, inToken.decimals).toString();
+
+          // Step 1: quote
+          const { ok: qOk, status: qStatus, data: quoteData, text: qText } = await postQuote({
+            type: "EXACT_INPUT",
+            amount: amountInRaw,
+            tokenIn: inToken.address,
+            tokenOut: outToken.address,
+            tokenInChainId: CHAIN_ID,
+            tokenOutChainId: CHAIN_ID,
+            swapper: walletAddress,
+            protocols: ["V2", "V3"],
+            routingPreference: "BEST_PRICE",
+            slippageTolerance: slip,
+          });
+          if (!qOk) return errorResult(`quote HTTP ${qStatus}`, { body: qText });
+
+          // Step 2: swap calldata
+          const swapRes = await fetch(`${TRADING_API}/swap`, {
+            method: "POST",
+            headers: apiHeaders(),
+            body: JSON.stringify({ quote: quoteData.quote }),
+            signal: AbortSignal.timeout(15000),
+          });
+          const swapText = await swapRes.text();
+          if (!swapRes.ok) return errorResult(`swap HTTP ${swapRes.status}`, { body: swapText });
+
+          const swapData = JSON.parse(swapText);
+          const tx = swapData.swap;
+          const amountOut = extractAmountOut(quoteData?.quote, outToken.decimals);
+          if (!tx?.to || !tx?.data) {
+            return errorResult("Uniswap swap response did not include executable transaction calldata.", {
+              rawResponse: swapData,
+            });
+          }
+
+          const execution = await wallet.executeTransaction({
+            to: tx.to as `0x${string}`,
+            data: tx.data as `0x${string}`,
+            valueWei: tx.value ?? "0",
+          });
+
+          return JSON.stringify({
+            ...execution,
+            amountIn,
+            amountOut,
+            slippagePct: slip,
+            routing: quoteData?.routing,
+            protocol: "Uniswap",
+          });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+  ];
+}

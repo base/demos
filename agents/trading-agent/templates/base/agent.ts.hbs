@@ -1,0 +1,615 @@
+import "dotenv/config";
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
+{{#if isClaude}}
+import { ChatAnthropic } from "@langchain/anthropic";
+{{/if}}
+{{#if (or isOpenai isVenice)}}
+import { ChatOpenAI } from "@langchain/openai";
+{{/if}}
+{{#if isGemini}}
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+{{/if}}
+import { z } from "zod";
+import { readFileSync, writeFileSync{{#if isSelfUpdating}}, existsSync{{/if}} } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import * as readline from "node:readline";
+import { EventEmitter } from "node:events";
+import { initWallet } from "./wallet.js";
+{{#if hasAnyTools}}
+import { getTools } from "./tools/index.js";
+{{/if}}
+import { wrapWithGuardrails } from "./guardrails.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const STRATEGY_PATH = resolve(__dirname, "../prompts/strategy.md");
+const TEST_MODE = /^(1|true|yes)$/i.test(process.env.TEST_MODE ?? "{{testMode}}");
+const CYCLE_RESPONSE_FORMAT = `STATUS: [MONITORING | ANALYZING | EXECUTING | WAITING]
+ACTION: [What you did, or "None"]
+RATIONALE: [One sentence]`;
+
+function loadStrategy(): string {
+  return readFileSync(STRATEGY_PATH, "utf-8");
+}
+
+function saveStrategy(strategy: string): void {
+  writeFileSync(STRATEGY_PATH, strategy, "utf-8");
+}
+
+{{#if isSelfUpdating}}
+interface StrategyHistoryEntry {
+  timestamp: string;
+  version: number;
+  reason: string;
+  previousStrategy: string;
+}
+
+function loadStrategyHistory(): StrategyHistoryEntry[] {
+  const historyPath = resolve(__dirname, "../strategy-history.json");
+  if (!existsSync(historyPath)) return [];
+  try {
+    return JSON.parse(readFileSync(historyPath, "utf-8"));
+  } catch {
+    return [];
+  }
+}
+
+function saveStrategyUpdate(
+  oldStrategy: string,
+  newStrategy: string,
+  reason: string,
+  version: number
+): void {
+  const history = loadStrategyHistory();
+  history.push({
+    timestamp: new Date().toISOString(),
+    version,
+    reason,
+    previousStrategy: oldStrategy,
+  });
+  writeFileSync(
+    resolve(__dirname, "../strategy-history.json"),
+    JSON.stringify(history, null, 2),
+    "utf-8"
+  );
+  saveStrategy(newStrategy);
+}
+{{/if}}
+
+function initLLM() {
+{{#if isClaude}}
+  return new ChatAnthropic({
+    model: process.env.LLM_MODEL ?? "{{model}}",
+    anthropicApiKey: process.env.LLM_API_KEY,
+  });
+{{/if}}
+{{#if isOpenai}}
+  return new ChatOpenAI({
+    model: process.env.LLM_MODEL ?? "{{model}}",
+    openAIApiKey: process.env.LLM_API_KEY,
+  });
+{{/if}}
+{{#if isVenice}}
+  return new ChatOpenAI({
+    model: process.env.LLM_MODEL ?? "{{model}}",
+    openAIApiKey: process.env.VENICE_API_KEY,
+    configuration: {
+      baseURL: process.env.VENICE_BASE_URL ?? "https://api.venice.ai/api/v1",
+    },
+  });
+{{/if}}
+{{#if isGemini}}
+  return new ChatGoogleGenerativeAI({
+    model: process.env.LLM_MODEL ?? "{{model}}",
+    apiKey: process.env.LLM_API_KEY,
+  });
+{{/if}}
+}
+
+function normalizeText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "text" in item) {
+          const text = (item as { text?: unknown }).text;
+          return typeof text === "string" ? text : JSON.stringify(item);
+        }
+        return JSON.stringify(item);
+      })
+      .join("\n")
+      .trim();
+  }
+  if (content == null) return "";
+  return JSON.stringify(content);
+}
+
+function parseStructuredOutput(raw: string): string {
+  const statusMatch = raw.match(/^\s*STATUS:\s*(.+)$/im);
+  const actionMatch = raw.match(/^\s*ACTION:\s*(.+)$/im);
+  const rationaleMatch = raw.match(/^\s*RATIONALE:\s*(.+)$/im);
+
+  if (statusMatch && actionMatch) {
+    return [
+      `  Status    : ${statusMatch[1].trim()}`,
+      `  Action    : ${actionMatch[1].trim()}`,
+      `  Rationale : ${rationaleMatch ? rationaleMatch[1].trim() : "N/A"}`,
+    ].join("\n");
+  }
+
+  return raw
+    .slice(0, 400)
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function collectTxHashes(value: unknown, hashes: Set<string>): void {
+  if (typeof value === "string") {
+    for (const match of value.matchAll(/0x[a-fA-F0-9]{64}/g)) {
+      hashes.add(match[0]);
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectTxHashes(item, hashes);
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const nested of Object.values(value as Record<string, unknown>)) {
+      collectTxHashes(nested, hashes);
+    }
+  }
+}
+
+function extractTxHashes(messages: Array<{ content: unknown }>): string[] {
+  const hashes = new Set<string>();
+  for (const msg of messages) {
+    collectTxHashes(msg.content, hashes);
+  }
+  return [...hashes];
+}
+
+function getBasescanBaseUrl(): string {
+  return "https://basescan.org";
+}
+
+function formatFundingSummary(funding: any): string {
+  if (!funding) return "Unknown";
+  if (funding.eth !== undefined || funding.usdc !== undefined) {
+    const eth = funding.eth ?? "0";
+    const usdc = funding.usdc ?? "0";
+    return `ETH: ${eth} | USDC: ${usdc}`;
+  }
+  if (funding.totalUsd !== undefined) {
+    return `Total USD: ${funding.totalUsd}`;
+  }
+  return JSON.stringify(funding);
+}
+
+function formatStrategyPreview(strategy: string): string {
+  return strategy.replace(/\s+/g, " ").trim().slice(0, 300);
+}
+
+function isZodLikeSchema(schema: unknown): boolean {
+  return (
+    typeof schema === "object" &&
+    schema !== null &&
+    "_def" in (schema as Record<string, unknown>) &&
+    typeof (schema as { _def?: unknown })._def === "object"
+  );
+}
+
+function applySchemaDescription(schema: any, description: unknown): any {
+  if (typeof description === "string" && description.trim()) {
+    return schema.describe(description);
+  }
+  return schema;
+}
+
+function buildUnionSchema(options: any[]): any {
+  if (options.length === 0) return z.any();
+  if (options.length === 1) return options[0];
+  return z.union(options as [any, any, ...any[]]);
+}
+
+function stripNullishDeep(value: unknown): unknown {
+  if (value == null) return undefined;
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stripNullishDeep(item))
+      .filter((item) => item !== undefined);
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([key, nested]) => [key, stripNullishDeep(nested)] as const)
+      .filter(([, nested]) => nested !== undefined);
+
+    return Object.fromEntries(entries);
+  }
+
+  return value;
+}
+
+function jsonSchemaToZod(schema: any, defs: Record<string, any> = {}, seen = new Map<any, any>()): any {
+  if (!schema || typeof schema !== "object") {
+    return z.any();
+  }
+
+  if (seen.has(schema)) {
+    return seen.get(schema);
+  }
+
+  if (typeof schema.$ref === "string") {
+    const match = schema.$ref.match(/^#\/\$defs\/(.+)$/);
+    if (match && defs[match[1]]) {
+      return jsonSchemaToZod(defs[match[1]], defs, seen);
+    }
+    return z.any();
+  }
+
+  const combinators = Array.isArray(schema.anyOf)
+    ? schema.anyOf
+    : Array.isArray(schema.oneOf)
+      ? schema.oneOf
+      : null;
+
+  if (combinators) {
+    const nullable = combinators.some((option: any) => option?.type === "null");
+    const variants = combinators
+      .filter((option: any) => option?.type !== "null")
+      .map((option: any) => jsonSchemaToZod(option, defs, seen));
+
+    let unionSchema = buildUnionSchema(variants);
+    if (nullable) unionSchema = unionSchema.nullable();
+    return applySchemaDescription(unionSchema, schema.description);
+  }
+
+  if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+    const nonNullValues = schema.enum.filter((value: any) => value !== null);
+    const nullable = nonNullValues.length !== schema.enum.length;
+    const enumSchema =
+      nonNullValues.length > 0 && nonNullValues.every((value: any) => typeof value === "string")
+        ? z.enum(nonNullValues as [string, ...string[]])
+        : buildUnionSchema(nonNullValues.map((value: any) => z.literal(value)));
+
+    return applySchemaDescription(nullable ? enumSchema.nullable() : enumSchema, schema.description);
+  }
+
+  let zodSchema: any;
+
+  if (schema.type === "object" || schema.properties) {
+    const shape: Record<string, any> = {};
+    const properties = schema.properties && typeof schema.properties === "object" ? schema.properties : {};
+    const required = new Set(Array.isArray(schema.required) ? schema.required : []);
+
+    for (const [key, value] of Object.entries(properties)) {
+      let propSchema = jsonSchemaToZod(value, defs, seen);
+      if (!required.has(key)) {
+        propSchema = propSchema.nullable();
+      }
+      shape[key] = propSchema;
+    }
+
+    zodSchema = z.object(shape);
+    seen.set(schema, zodSchema);
+
+    if (schema.additionalProperties) {
+      zodSchema = zodSchema.passthrough();
+    } else {
+      zodSchema = zodSchema.strict();
+    }
+
+    return applySchemaDescription(zodSchema, schema.description);
+  }
+
+  if (schema.type === "array") {
+    zodSchema = z.array(jsonSchemaToZod(schema.items, defs, seen));
+    seen.set(schema, zodSchema);
+    return applySchemaDescription(zodSchema, schema.description);
+  }
+
+  switch (schema.type) {
+    case "string":
+      zodSchema = z.string();
+      break;
+    case "integer":
+    case "number":
+      zodSchema = z.number();
+      break;
+    case "boolean":
+      zodSchema = z.boolean();
+      break;
+    case "null":
+      zodSchema = z.null();
+      break;
+    default:
+      zodSchema = z.any();
+      break;
+  }
+
+  seen.set(schema, zodSchema);
+  return applySchemaDescription(zodSchema, schema.description);
+}
+
+function normalizeToolSchemas(tools: any[]): any[] {
+  return tools.map((tool) => {
+    const schema = tool?.schema;
+    if (!schema || isZodLikeSchema(schema)) {
+      return tool;
+    }
+
+    if (typeof schema === "object") {
+      try {
+        tool.schema = jsonSchemaToZod(schema, schema.$defs ?? schema.definitions ?? {});
+      } catch (error) {
+        console.warn(
+          `[tool-schema] Failed to convert schema for ${tool?.name ?? "unknown_tool"}: ${(error as Error).message}`
+        );
+        tool.schema = z.object({}).passthrough();
+      }
+    }
+
+    if (typeof tool?.func === "function") {
+      const originalFunc = tool.func.bind(tool);
+      tool.func = async (input: unknown, ...rest: unknown[]) =>
+        originalFunc((stripNullishDeep(input) as Record<string, unknown>) ?? {}, ...rest);
+    }
+
+    return tool;
+  });
+}
+
+
+async function main() {
+  const llm = initLLM();
+  const wallet: any = await initWallet();
+  let currentStrategy = loadStrategy();
+
+  const earlyWakeEmitter = new EventEmitter();
+  const pendingMessages: string[] = [];
+  let startRequested = false;
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    terminal: process.stdin.isTTY,
+  });
+
+  if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
+    process.stdin.setRawMode(false);
+  }
+
+  rl.on("line", (line) => {
+    const trimmed = line.trim();
+    if (trimmed) pendingMessages.push(trimmed);
+    startRequested = true;
+    earlyWakeEmitter.emit("wake");
+  });
+
+  async function waitWithInterrupt(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const onWake = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        earlyWakeEmitter.off("wake", onWake);
+        resolve();
+      }, ms);
+      earlyWakeEmitter.once("wake", onWake);
+    });
+  }
+
+  async function refreshFunding(): Promise<any> {
+    if (typeof wallet.refreshFunding === "function") {
+      return wallet.refreshFunding();
+    }
+    return wallet.funding;
+  }
+
+  // Collect all tools
+  let tools: any[] = [];
+
+{{#if isBankr}}
+  // Bankr wallet returns tools directly
+  tools.push(...wallet.tools);
+{{/if}}
+{{#if isSponge}}
+  // Sponge wallet returns tools directly
+  tools.push(...wallet.tools);
+{{/if}}
+{{#if isCdpServerWallet}}
+  // CDP wallet exposes tools (cdp_swap, cdp_transfer, cdp_send_transaction, etc.)
+  tools.push(...wallet.tools);
+{{/if}}
+{{#if hasAnyTools}}
+  tools.push(...({{#if hasAnyMcp}}await {{/if}}getTools(wallet)));
+{{/if}}
+
+  tools = normalizeToolSchemas(tools);
+
+  // Wrap tools with guardrail checks
+  tools = wrapWithGuardrails(tools);
+
+  let agent = createReactAgent({ llm, tools, prompt: currentStrategy });
+{{#if isSelfUpdating}}
+  const evaluationIntervalMinutesRaw = Number.parseFloat(
+    process.env.EVALUATION_INTERVAL_MINUTES ??
+      (process.env.EVALUATION_INTERVAL_HOURS
+        ? String(Number.parseFloat(process.env.EVALUATION_INTERVAL_HOURS) * 60)
+        : "{{evaluationInterval}}")
+  );
+  const evaluationIntervalMinutes =
+    Number.isFinite(evaluationIntervalMinutesRaw) && evaluationIntervalMinutesRaw > 0
+      ? evaluationIntervalMinutesRaw
+      : Number.parseFloat("{{evaluationInterval}}");
+  let strategyVersion = 1;
+  const evaluationIntervalMs = evaluationIntervalMinutes * 60 * 1000;
+  let lastEvaluationTime = Date.now() - evaluationIntervalMs;
+{{/if}}
+
+  const applyStrategyUpdate = (newStrategy: string, reason: string) => {
+    const cleaned = newStrategy.trim();
+    if (!cleaned || cleaned === currentStrategy.trim()) return;
+{{#if isSelfUpdating}}
+    saveStrategyUpdate(currentStrategy, cleaned, reason, strategyVersion);
+    strategyVersion++;
+{{else}}
+    saveStrategy(cleaned);
+{{/if}}
+    currentStrategy = cleaned;
+    agent = createReactAgent({ llm, tools, prompt: currentStrategy });
+    const ts = new Date().toISOString().slice(11, 19);
+    console.log(`[${ts}] [STRATEGY] ${reason}`);
+  };
+
+  const intervalSeconds = parseInt(process.env.AGENT_INTERVAL_SECONDS ?? "{{defaultAgentIntervalSeconds}}");
+  const intervalMs = intervalSeconds * 1000;
+  const walletLabel = wallet.address ?? wallet.accountName ?? "Managed by wallet provider";
+  let funding = await refreshFunding();
+
+  console.log(`[WALLET] ${walletLabel}`);
+  console.log(`[BALANCE] ${formatFundingSummary(funding)}`);
+
+  if (funding?.needsFunding) {
+    console.log(
+      `[FUNDING] Funding appears insufficient. Polling every 15s for up to 2 minutes (press Enter to continue immediately).`
+    );
+    const maxWaitMs = 120000;
+    const pollMs = 15000;
+    let waited = 0;
+
+    while (waited < maxWaitMs && funding?.needsFunding && !startRequested) {
+      await waitWithInterrupt(pollMs);
+      waited += pollMs;
+      if (startRequested) break;
+      funding = await refreshFunding();
+      console.log(`[BALANCE] ${formatFundingSummary(funding)}`);
+      if (funding?.needsFunding) {
+        const remaining = Math.max(0, Math.ceil((maxWaitMs - waited) / 1000));
+        console.log(`[FUNDING] Still waiting for funds (${remaining}s remaining).`);
+      }
+    }
+  }
+
+  console.log(`[STRATEGY] ${formatStrategyPreview(currentStrategy)}`);
+  console.log("[READY] Press Enter to start, or type a message to send to the agent...");
+
+  if (!startRequested && pendingMessages.length === 0 && process.stdin.isTTY) {
+    await waitWithInterrupt(24 * 60 * 60 * 1000);
+  }
+
+  console.log(`[{{name}}] Agent started. Interval: ${intervalSeconds}s`);
+  if (TEST_MODE) {
+    console.log(`[{{name}}] TEST MODE enabled. Prefer small validation trades only.`);
+  }
+{{#if isSelfUpdating}}
+  console.log(
+    `[{{name}}] Self-updating enabled. Evaluation interval: ${evaluationIntervalMinutes}m`
+  );
+{{/if}}
+
+  while (true) {
+    const ts = new Date().toISOString().slice(11, 19);
+    const userMessages = pendingMessages.splice(0, pendingMessages.length);
+
+
+{{#if isSelfUpdating}}
+    // Self-updating: evaluate strategy if interval has elapsed
+    if (Date.now() - lastEvaluationTime >= evaluationIntervalMs) {
+      console.log(`[${ts}] Evaluating strategy performance...`);
+      try {
+        const evalResult = await agent.invoke({
+          messages: [
+            {
+              role: "user",
+              content: `You are performing a strategy self-evaluation. Use your available tools to:
+1. Check your current wallet balances and portfolio value
+2. Analyze current market conditions
+
+Then evaluate whether your current trading strategy is performing well.
+Ignore any default cycle response format for this step.
+
+Respond with ONLY valid JSON (no markdown, no code fences):
+{
+  "shouldUpdate": true or false,
+  "reason": "brief explanation of your assessment",
+  "newStrategy": "if shouldUpdate is true, write the COMPLETE new strategy prompt here — otherwise omit this field"
+}`,
+            },
+          ],
+        });
+        const evalMsg = evalResult.messages[evalResult.messages.length - 1];
+        const rawEval = normalizeText(evalMsg.content);
+        const jsonMatch = rawEval.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error("Self-update evaluation did not return JSON.");
+        }
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.shouldUpdate && parsed.newStrategy) {
+          applyStrategyUpdate(parsed.newStrategy, `Auto-update: ${parsed.reason}`);
+        } else {
+          console.log(`[${ts}] Strategy evaluation: keeping current strategy — ${parsed.reason}`);
+        }
+        lastEvaluationTime = Date.now();
+      } catch (e) {
+        console.error(`[${ts}] Strategy evaluation error: ${(e as Error).message}`);
+        lastEvaluationTime = Date.now();
+      }
+    }
+{{/if}}
+
+    try {
+      const cyclePromptParts: string[] = [];
+      if (userMessages.length > 0) {
+        cyclePromptParts.push(
+          "High-priority user directives received since last cycle:\n" +
+            userMessages
+              .map(
+                (msg, index) =>
+                  `${index + 1}. ⚠️ USER DIRECTIVE (takes priority over strategy): ${msg}`
+              )
+              .join("\n")
+        );
+      }
+      cyclePromptParts.push(
+        "Execute one strategy cycle now. If the user gave a direct instruction, follow it immediately unless it is impossible or unsafe."
+      );
+      cyclePromptParts.push(
+        "Never claim that a trade executed unless you have a verified transaction hash from tool output."
+      );
+      cyclePromptParts.push(`At the end of this cycle, respond with exactly:\n${CYCLE_RESPONSE_FORMAT}`);
+
+      console.log(
+        `[${ts}] [CYCLE] ${userMessages.length > 0 ? `Running with ${userMessages.length} user directive(s)` : "Running strategy cycle"}`
+      );
+      const result = await agent.invoke({
+        messages: [{ role: "user", content: cyclePromptParts.join("\n\n") }],
+      });
+
+      const lastMsg = result.messages[result.messages.length - 1];
+      const raw = normalizeText(lastMsg.content);
+      console.log(`[${ts}]\n${parseStructuredOutput(raw)}`);
+
+      const txHashes = extractTxHashes(result.messages as Array<{ content: unknown }>);
+      const basescanBase = getBasescanBaseUrl();
+      for (const hash of txHashes) {
+        console.log(`[TX] ${basescanBase}/tx/${hash}`);
+      }
+    } catch (e) {
+      console.error(`[${ts}] Error: ${(e as Error).message}`);
+    }
+
+    console.log(
+      `[${ts}] Next check in ${intervalSeconds}s (press Enter or type to wake early)`
+    );
+    await waitWithInterrupt(intervalMs);
+  }
+}
+
+main().catch((err) => {
+  console.error("Fatal:", err);
+  process.exit(1);
+});

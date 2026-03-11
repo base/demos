@@ -1,0 +1,69 @@
+{{#if hasUniswap}}
+import { getUniswapTools } from "./protocols/uniswap.js";
+{{/if}}
+{{#if hasAerodrome}}
+import { getAerodromeTools } from "./protocols/aerodrome.js";
+{{/if}}
+{{#if hasAvantis}}
+import { getAvantisTools } from "./protocols/avantis.js";
+{{/if}}
+{{#if hasVirtuals}}
+import { getVirtualsTools } from "./protocols/virtuals.js";
+{{/if}}
+{{#if hasCoingecko}}
+import { getCoinGeckoTools } from "./x402/coingecko.js";
+{{/if}}
+{{#if hasCoinmarketcap}}
+import { getCoinMarketCapTools } from "./x402/coinmarketcap.js";
+{{/if}}
+{{#if hasAlchemyX402}}
+import { getAlchemyX402Tools } from "./x402/alchemy-x402.js";
+{{/if}}
+{{#if hasAgentcashMcp}}
+import { getAgentcashMcpTools } from "./mcp/agentcash-mcp.js";
+{{/if}}
+{{#if hasNansenX402}}
+import { getNansenX402Tools } from "./x402/nansen-x402.js";
+{{/if}}
+{{#if hasNansenMcp}}
+import { getNansenMcpTools } from "./mcp/nansen-mcp.js";
+{{/if}}
+{{{customToolImports}}}
+
+export {{#if hasAnyMcp}}async {{/if}}function getTools(wallet: any) {
+  const tools: any[] = [];
+
+{{#if hasUniswap}}
+  tools.push(...getUniswapTools(wallet));
+{{/if}}
+{{#if hasAerodrome}}
+  tools.push(...getAerodromeTools(wallet));
+{{/if}}
+{{#if hasAvantis}}
+  tools.push(...getAvantisTools(wallet));
+{{/if}}
+{{#if hasVirtuals}}
+  tools.push(...getVirtualsTools());
+{{/if}}
+{{#if hasCoingecko}}
+  tools.push(...getCoinGeckoTools());
+{{/if}}
+{{#if hasCoinmarketcap}}
+  tools.push(...getCoinMarketCapTools());
+{{/if}}
+{{#if hasAlchemyX402}}
+  tools.push(...getAlchemyX402Tools());
+{{/if}}
+{{#if hasAgentcashMcp}}
+  tools.push(...(await getAgentcashMcpTools()));
+{{/if}}
+{{#if hasNansenX402}}
+  tools.push(...getNansenX402Tools());
+{{/if}}
+{{#if hasNansenMcp}}
+  tools.push(...(await getNansenMcpTools()));
+{{/if}}
+{{{customToolPushes}}}
+
+  return tools;
+}

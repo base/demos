@@ -1,0 +1,134 @@
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import { okResult, errorResult, normalizeError } from "./tool-result.js";
+
+const BANKR_API_URL = "https://api.bankr.bot";
+
+interface BankrFundingStatus {
+  needsFunding: boolean;
+  totalUsd?: string;
+}
+
+function writeAccessHint(status: number): string {
+  if (status === 401 || status === 403) {
+    return ' Check your Bankr API key permissions: create the key with "Read Only" turned OFF.';
+  }
+  return "";
+}
+
+async function pollJob(jobId: string, apiKey: string): Promise<{ status: string; response: string }> {
+  const maxAttempts = 60;
+  const intervalMs = 2000;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const res = await fetch(`${BANKR_API_URL}/agent/job/${jobId}`, {
+      headers: { "X-API-Key": apiKey },
+    });
+    if (!res.ok) {
+      throw new Error(
+        `Bankr job poll failed: ${res.status} ${res.statusText}.${writeAccessHint(res.status)}`
+      );
+    }
+    const data = await res.json();
+    if (data.status === "completed") return data;
+    if (data.status === "failed" || data.status === "cancelled") {
+      throw new Error(`Bankr job ${data.status}: ${data.response ?? "no details"}`);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error("Bankr job timed out after 2 minutes");
+}
+
+async function fetchBaseBalances(apiKey: string): Promise<BankrFundingStatus> {
+  try {
+    const res = await fetch(`${BANKR_API_URL}/agent/balances?chains=base`, {
+      headers: { "X-API-Key": apiKey },
+    });
+    if (!res.ok) {
+      return { needsFunding: true };
+    }
+
+    const data = await res.json();
+    const totalUsd = data?.balances?.base?.total;
+    const parsedTotal = Number(totalUsd ?? 0);
+
+    return {
+      needsFunding: !Number.isFinite(parsedTotal) || parsedTotal <= 0,
+      totalUsd: typeof totalUsd === "string" ? totalUsd : String(totalUsd ?? "0"),
+    };
+  } catch {
+    return { needsFunding: true };
+  }
+}
+
+export async function initWallet() {
+  const apiKey = process.env.BANKR_API_KEY;
+  if (!apiKey) {
+    throw new Error("BANKR_API_KEY is required.");
+  }
+
+  const funding = await fetchBaseBalances(apiKey);
+
+  const tools = [
+    new DynamicStructuredTool({
+      name: "bankr_execute",
+      description:
+        "Execute any DeFi trade or query via Bankr. Bankr handles DEX routing, perps, and protocol interactions natively via natural language instructions.",
+      schema: z.object({
+        prompt: z
+          .string()
+          .describe("Trade instruction in plain English, e.g. 'swap 0.1 ETH for USDC on base'"),
+      }),
+      func: async ({ prompt }) => {
+        try {
+          const submitRes = await fetch(`${BANKR_API_URL}/agent/prompt`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-API-Key": apiKey,
+            },
+            body: JSON.stringify({ prompt }),
+          });
+          if (!submitRes.ok) {
+            return errorResult(
+              `Bankr API error: ${submitRes.status} ${submitRes.statusText}.${writeAccessHint(submitRes.status)}`
+            );
+          }
+          const { jobId } = await submitRes.json();
+          const result = await pollJob(jobId, apiKey);
+          return okResult({ response: result.response });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "bankr_get_balances",
+      description: "Fetch current wallet balances from Bankr for Base.",
+      schema: z.object({}),
+      func: async () => {
+        try {
+          const res = await fetch(`${BANKR_API_URL}/agent/balances?chains=base`, {
+            headers: { "X-API-Key": apiKey },
+          });
+          if (!res.ok) {
+            return errorResult(
+              `Bankr balances error: ${res.status} ${res.statusText}.${writeAccessHint(res.status)}`
+            );
+          }
+          const data = await res.json();
+          return okResult({ balances: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+  ];
+
+  return {
+    kind: "bankr",
+    tools,
+    funding,
+    refreshFunding: async () => fetchBaseBalances(apiKey),
+  };
+}

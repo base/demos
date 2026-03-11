@@ -1,0 +1,51 @@
+import { MultiServerMCPClient } from "@langchain/mcp-adapters";
+
+const NANSEN_MCP_URL = "https://mcp.nansen.ai/ra/mcp";
+
+let cachedTools: any[] | null = null;
+let mcpClient: MultiServerMCPClient | null = null;
+
+export async function getNansenMcpTools(): Promise<any[]> {
+  if (cachedTools) return cachedTools;
+
+  const apiKey = process.env.NANSEN_API_KEY;
+  if (!apiKey) {
+    throw new Error("NANSEN_API_KEY is required for Nansen MCP. Get your key at nansen.ai.");
+  }
+
+  mcpClient = new MultiServerMCPClient({
+    mcpServers: {
+      nansen: {
+        transport: "http",
+        url: NANSEN_MCP_URL,
+        headers: {
+          "NANSEN-API-KEY": apiKey,
+          Accept: "application/json, text/event-stream",
+        },
+      },
+    },
+  });
+
+  try {
+    const tools = await mcpClient.getTools();
+    cachedTools = tools;
+    console.log(`[Nansen MCP] Loaded ${tools.length} tools from ${NANSEN_MCP_URL}`);
+    return tools;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to connect to Nansen MCP server: ${msg}. Check NANSEN_API_KEY and network access.`);
+  }
+}
+
+// Graceful shutdown: close MCP client when process exits
+process.on("exit", () => {
+  mcpClient?.close().catch(() => {});
+});
+process.on("SIGINT", () => {
+  mcpClient?.close().catch(() => {});
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  mcpClient?.close().catch(() => {});
+  process.exit(0);
+});

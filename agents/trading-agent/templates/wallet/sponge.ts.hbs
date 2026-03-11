@@ -1,0 +1,353 @@
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import { okResult, errorResult, normalizeError } from "./tool-result.js";
+
+const SPONGE_API_URL = "https://api.wallet.paysponge.com";
+const SPONGE_VERSION = "0.2.1";
+
+interface SpongeWalletRecord {
+  id: string;
+  address: string;
+  chainId?: number;
+  chainName?: string;
+  balance?: string;
+  symbol?: string;
+  tokenBalances?: Array<{
+    symbol?: string;
+    formatted?: string;
+    usdValue?: string;
+  }>;
+}
+
+interface SpongeFundingStatus {
+  needsFunding: boolean;
+  totalUsd?: string;
+  addresses?: string[];
+  baseAddress?: string;
+}
+
+function isBaseWallet(wallet: SpongeWalletRecord): boolean {
+  return wallet.chainId === 8453 || /base/i.test(wallet.chainName ?? "");
+}
+
+function getBaseWallets(wallets: SpongeWalletRecord[]): SpongeWalletRecord[] {
+  return wallets.filter(isBaseWallet);
+}
+
+function spongeHeaders(apiKey: string): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`,
+    "Sponge-Version": SPONGE_VERSION,
+  };
+}
+
+async function fetchSpongeWallets(apiKey: string, includeBalances = false): Promise<SpongeWalletRecord[]> {
+  const query = includeBalances ? "?includeBalances=true" : "";
+  const res = await fetch(`${SPONGE_API_URL}/api/wallets${query}`, {
+    headers: spongeHeaders(apiKey),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Sponge wallets error: ${res.status} ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+function sumUsdValues(wallets: SpongeWalletRecord[]): number {
+  let total = 0;
+
+  for (const wallet of wallets) {
+    for (const token of wallet.tokenBalances ?? []) {
+      const usd = Number(token.usdValue ?? 0);
+      if (Number.isFinite(usd)) total += usd;
+    }
+  }
+
+  return total;
+}
+
+async function fetchSpongeBalances(apiKey: string): Promise<SpongeFundingStatus> {
+  try {
+    const wallets = getBaseWallets(await fetchSpongeWallets(apiKey, true));
+    const addresses = [...new Set(wallets.map((wallet) => wallet.address).filter(Boolean))];
+    const baseWallet = wallets[0];
+    const totalUsd = sumUsdValues(wallets);
+    const hasNativeBalance = wallets.some((wallet) => Number(wallet.balance ?? 0) > 0);
+    const hasTokenBalance = wallets.some((wallet) =>
+      (wallet.tokenBalances ?? []).some((token) => Number(token.formatted ?? 0) > 0)
+    );
+
+    return {
+      needsFunding: !hasNativeBalance && !hasTokenBalance && totalUsd <= 0,
+      totalUsd: String(totalUsd),
+      addresses,
+      baseAddress: baseWallet?.address,
+    };
+  } catch {
+    return { needsFunding: true };
+  }
+}
+
+export async function initWallet() {
+  const apiKey = process.env.SPONGE_API_KEY;
+  if (!apiKey) {
+    throw new Error("SPONGE_API_KEY is required. Register at https://paysponge.com/ to get your key.");
+  }
+
+  const funding = await fetchSpongeBalances(apiKey);
+
+  const tools = [
+    new DynamicStructuredTool({
+      name: "sponge_get_balances",
+      description: "Fetch current wallet balances for the Base wallet via Sponge.",
+      schema: z.object({}),
+      func: async () => {
+        try {
+          const data = getBaseWallets(await fetchSpongeWallets(apiKey, true));
+          return okResult({ balances: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "sponge_swap_base",
+      description: "Execute a token swap on Base via Sponge.",
+      schema: z.object({
+        tokenIn: z.string().describe("Input token address or symbol"),
+        tokenOut: z.string().describe("Output token address or symbol"),
+        amountIn: z.string().describe("Amount of input token to swap (as string)"),
+        slippagePct: z.number().optional().nullable().describe("Slippage tolerance in percent (default 0.5)"),
+      }),
+      func: async ({ tokenIn, tokenOut, amountIn, slippagePct }) => {
+        try {
+          const res = await fetch(`${SPONGE_API_URL}/api/transactions/base-swap`, {
+            method: "POST",
+            headers: spongeHeaders(apiKey),
+            body: JSON.stringify({ tokenIn, tokenOut, amountIn, slippagePct }),
+          });
+          if (!res.ok) {
+            return errorResult(`Sponge swap error: ${res.status} ${res.statusText}`);
+          }
+          const data = await res.json();
+          return okResult({ result: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "sponge_transfer_evm",
+      description: "Transfer tokens on Base via Sponge.",
+      schema: z.object({
+        token: z.string().describe("Token symbol or address"),
+        toAddress: z.string().describe("Recipient wallet address"),
+        amount: z.string().describe("Amount to transfer (as string)"),
+      }),
+      func: async ({ token, toAddress, amount }) => {
+        try {
+          const res = await fetch(`${SPONGE_API_URL}/api/transfers/evm`, {
+            method: "POST",
+            headers: spongeHeaders(apiKey),
+            body: JSON.stringify({ chain: "base", token, toAddress, amount }),
+          });
+          if (!res.ok) {
+            return errorResult(`Sponge EVM transfer error: ${res.status} ${res.statusText}`);
+          }
+          const data = await res.json();
+          return okResult({ result: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "sponge_polymarket",
+      description: "Place or manage prediction market positions on Polymarket via Sponge.",
+      schema: z.object({
+        action: z.string().describe("Action to perform (e.g. 'buy', 'sell', 'get_markets')"),
+        marketId: z.string().optional().nullable().describe("Polymarket market ID"),
+        outcome: z.string().optional().nullable().describe("Outcome to bet on (e.g. 'yes', 'no')"),
+        amount: z.string().optional().nullable().describe("Amount in USDC (as string)"),
+      }),
+      func: async ({ action, marketId, outcome, amount }) => {
+        try {
+          const res = await fetch(`${SPONGE_API_URL}/api/polymarket`, {
+            method: "POST",
+            headers: spongeHeaders(apiKey),
+            body: JSON.stringify({ action, marketId, outcome, amount }),
+          });
+          if (!res.ok) {
+            return errorResult(`Sponge Polymarket error: ${res.status} ${res.statusText}`);
+          }
+          const data = await res.json();
+          return okResult({ result: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "sponge_hyperliquid",
+      description: "Trade perpetual futures on Hyperliquid via Sponge.",
+      schema: z.object({
+        action: z.string().describe("Action: 'open_long', 'open_short', 'close', 'get_positions'"),
+        asset: z.string().optional().nullable().describe("Asset symbol (e.g. 'ETH', 'BTC')"),
+        size: z.string().optional().nullable().describe("Position size in USD (as string)"),
+        leverage: z.number().optional().nullable().describe("Leverage multiplier (e.g. 5 for 5x)"),
+      }),
+      func: async ({ action, asset, size, leverage }) => {
+        try {
+          const res = await fetch(`${SPONGE_API_URL}/api/hyperliquid`, {
+            method: "POST",
+            headers: spongeHeaders(apiKey),
+            body: JSON.stringify({ action, asset, size, leverage }),
+          });
+          if (!res.ok) {
+            return errorResult(`Sponge Hyperliquid error: ${res.status} ${res.statusText}`);
+          }
+          const data = await res.json();
+          return okResult({ result: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "sponge_discover_services",
+      description: "Discover all x402 services available through Sponge.",
+      schema: z.object({}),
+      func: async () => {
+        try {
+          const res = await fetch(`${SPONGE_API_URL}/api/discover`, {
+            headers: spongeHeaders(apiKey),
+          });
+          if (!res.ok) {
+            return errorResult(`Sponge discover error: ${res.status} ${res.statusText}`);
+          }
+          const data = await res.json();
+          return okResult({ services: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "sponge_service_details",
+      description: "Get details about a specific x402 service available through Sponge.",
+      schema: z.object({
+        serviceId: z.string().describe("Service identifier to look up"),
+      }),
+      func: async ({ serviceId }) => {
+        try {
+          const res = await fetch(`${SPONGE_API_URL}/api/discover/${encodeURIComponent(serviceId)}`, {
+            headers: spongeHeaders(apiKey),
+          });
+          if (!res.ok) {
+            return errorResult(`Sponge service details error: ${res.status} ${res.statusText}`);
+          }
+          const data = await res.json();
+          return okResult({ service: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "sponge_x402_fetch",
+      description: "Make a pay-per-request x402 API call through Sponge's payment proxy.",
+      schema: z.object({
+        url: z.string().describe("The x402 endpoint URL to call"),
+        method: z.string().optional().nullable().describe("HTTP method (default: GET)"),
+        body: z.record(z.unknown()).optional().nullable().describe("Request body for POST requests"),
+      }),
+      func: async ({ url, method, body }) => {
+        try {
+          const res = await fetch(`${SPONGE_API_URL}/api/x402/fetch`, {
+            method: "POST",
+            headers: spongeHeaders(apiKey),
+            body: JSON.stringify({ url, method: method ?? "GET", body }),
+          });
+          if (!res.ok) {
+            return errorResult(`Sponge x402 fetch error: ${res.status} ${res.statusText}`);
+          }
+          const data = await res.json();
+          return okResult({ result: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "sponge_submit_plan",
+      description: "Submit a multi-step execution plan to Sponge for approval before execution.",
+      schema: z.object({
+        steps: z.array(z.object({
+          action: z.string().describe("Action type (e.g. 'swap', 'bridge', 'transfer')"),
+          params: z.record(z.unknown()).describe("Action parameters"),
+        })).describe("Ordered list of steps to execute"),
+        description: z.string().describe("Human-readable description of the plan"),
+      }),
+      func: async ({ steps, description }) => {
+        try {
+          const res = await fetch(`${SPONGE_API_URL}/api/plans/submit`, {
+            method: "POST",
+            headers: spongeHeaders(apiKey),
+            body: JSON.stringify({ steps, description }),
+          });
+          if (!res.ok) {
+            return errorResult(`Sponge submit plan error: ${res.status} ${res.statusText}`);
+          }
+          const data = await res.json();
+          return okResult({ plan: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "sponge_approve_plan",
+      description: "Approve and execute a previously submitted Sponge plan.",
+      schema: z.object({
+        planId: z.string().describe("Plan ID returned from sponge_submit_plan"),
+      }),
+      func: async ({ planId }) => {
+        try {
+          const res = await fetch(`${SPONGE_API_URL}/api/plans/approve`, {
+            method: "POST",
+            headers: spongeHeaders(apiKey),
+            body: JSON.stringify({ planId }),
+          });
+          if (!res.ok) {
+            return errorResult(`Sponge approve plan error: ${res.status} ${res.statusText}`);
+          }
+          const data = await res.json();
+          return okResult({ result: data });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+  ];
+
+  return {
+    kind: "sponge",
+    tools,
+    funding,
+    address: funding.baseAddress,
+    addresses: funding.addresses ?? [],
+    refreshFunding: async () => fetchSpongeBalances(apiKey),
+  };
+}

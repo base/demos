@@ -1,0 +1,457 @@
+import { CdpClient } from "@coinbase/cdp-sdk";
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import {
+  createPublicClient,
+  http,
+  formatEther,
+  formatUnits,
+  encodeFunctionData,
+  parseAbi,
+} from "viem";
+import { base } from "viem/chains";
+import { writeFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { okResult, errorResult, normalizeError, isHexTxHash } from "./tool-result.js";
+{{#if hasAnyX402}}
+import { initX402Client } from "./tools/x402/client.js";
+{{/if}}
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const ERC20_ABI = parseAbi([
+  "function balanceOf(address owner) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+]);
+
+const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`;
+
+function resolveBaseConfig() {
+  return {
+    chainId: "8453",
+    chain: base,
+    cdpNetwork: "base",
+    rpcUrl: process.env.RPC_URL ?? "{{rpcUrl}}",
+    usdc: USDC,
+  };
+}
+
+function normalizeBase64Secret(secret: string): string {
+  return secret.trim().replace(/\s+/g, "");
+}
+
+async function readFunding(address: `0x${string}`): Promise<{ eth: string; usdc: string; needsFunding: boolean }> {
+  const cfg = resolveBaseConfig();
+  const client = createPublicClient({
+    chain: cfg.chain,
+    transport: http(cfg.rpcUrl),
+  });
+
+  const eth = await client.getBalance({ address });
+  const usdc = await client.readContract({
+    address: cfg.usdc,
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: [address],
+  });
+
+  const ethFormatted = formatEther(eth);
+  const usdcFormatted = formatUnits(usdc, 6);
+
+  return {
+    eth: ethFormatted,
+    usdc: usdcFormatted,
+    needsFunding: eth === 0n || usdc === 0n,
+  };
+}
+
+function findTransactionHash(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === "string") {
+    const exact = value.match(/^0x[a-fA-F0-9]{64}$/);
+    if (exact) return exact[0];
+    const embedded = value.match(/0x[a-fA-F0-9]{64}/);
+    return embedded?.[0];
+  }
+  if (typeof value !== "object") return undefined;
+
+  const obj = value as Record<string, unknown>;
+  const directKeys = ["transactionHash", "txHash", "hash", "id"];
+  for (const key of directKeys) {
+    const candidate = findTransactionHash(obj[key]);
+    if (candidate) return candidate;
+  }
+  for (const nestedKey of ["result", "transaction", "response", "data"]) {
+    const candidate = findTransactionHash(obj[nestedKey]);
+    if (candidate) return candidate;
+  }
+  return undefined;
+}
+
+function withTransactionHash(result: unknown): Record<string, unknown> {
+  if (result && typeof result === "object") {
+    const asObj = result as Record<string, unknown>;
+    if (typeof asObj.transactionHash === "string") return asObj;
+    const txHash = findTransactionHash(asObj);
+    if (txHash) return { ...asObj, transactionHash: txHash };
+    return asObj;
+  }
+  const txHash = findTransactionHash(result);
+  return txHash ? { result, transactionHash: txHash } : { result };
+}
+
+export async function initWallet() {
+  const cdpApiKeyId = process.env.CDP_API_KEY_ID;
+  const cdpApiKeySecret = process.env.CDP_API_KEY_SECRET;
+  const rawWalletSecret = process.env.CDP_WALLET_SECRET;
+  const cdpWalletSecret = rawWalletSecret ? normalizeBase64Secret(rawWalletSecret) : undefined;
+
+  if (!cdpApiKeyId || !cdpApiKeySecret || !cdpWalletSecret) {
+    throw new Error("CDP_API_KEY_ID, CDP_API_KEY_SECRET, and CDP_WALLET_SECRET are required.");
+  }
+
+  const cdp = new CdpClient({
+    apiKeyId: cdpApiKeyId,
+    apiKeySecret: cdpApiKeySecret,
+    walletSecret: cdpWalletSecret,
+  });
+
+  const cfg = resolveBaseConfig();
+  const accountName = process.env.CDP_EVM_ACCOUNT_NAME ?? "{{name}}-primary";
+  let account: any;
+  try {
+    account = await cdp.evm.getOrCreateAccount({ name: accountName });
+  } catch (error) {
+    const err = error as { message?: string; cause?: { message?: string } };
+    const message = `${err?.message ?? ""} ${err?.cause?.message ?? ""}`;
+    if (/Invalid Wallet Secret format/i.test(message)) {
+      throw new Error(
+        "Invalid CDP_WALLET_SECRET format. Use the base64 wallet secret from CDP Portal (wallet auth key), not the API key secret."
+      );
+    }
+    throw error;
+  }
+  const address = account.address as `0x${string}`;
+  const publicClient = createPublicClient({ chain: cfg.chain, transport: http(cfg.rpcUrl) });
+
+  const funding = await readFunding(address);
+{{#if hasAnyX402}}
+  try {
+    initX402Client(account, publicClient);
+  } catch (error) {
+    throw new Error(
+      `Failed to initialize x402 client with CDP account signer: ${(error as Error).message}`
+    );
+  }
+{{/if}}
+
+  writeFileSync(
+    resolve(__dirname, "../wallet-state.json"),
+    JSON.stringify(
+      {
+        provider: "cdp-server-wallet",
+        accountName,
+        address,
+        chainId: cfg.chainId,
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    ),
+    "utf-8"
+  );
+
+  async function sendTransaction(params: {
+    to: `0x${string}`;
+    data?: `0x${string}`;
+    valueWei?: string | null;
+  }): Promise<Record<string, unknown>> {
+    const result = await (cdp.evm as any).sendTransaction({
+      address,
+      network: cfg.cdpNetwork,
+      transaction: {
+        to: params.to,
+        value: params.valueWei ? BigInt(params.valueWei) : 0n,
+        data: params.data ?? "0x",
+      },
+    });
+
+    const enriched = withTransactionHash(result);
+    const txHash = findTransactionHash(enriched);
+    if (!isHexTxHash(txHash)) {
+      return {
+        success: false,
+        error: "CDP sendTransaction did not return a valid transaction hash.",
+        response: enriched,
+      };
+    }
+
+    return {
+      success: true,
+      txHash,
+      response: enriched,
+    };
+  }
+
+  async function verifyTransaction(
+    txHash: `0x${string}`,
+    waitForReceipt = true,
+    timeoutMs = 45000
+  ): Promise<Record<string, unknown>> {
+    try {
+      const receipt = waitForReceipt
+        ? await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: timeoutMs })
+        : await publicClient.getTransactionReceipt({ hash: txHash });
+
+      const succeeded = receipt.status === "success";
+      return {
+        success: succeeded,
+        txHash,
+        verified: true,
+        receiptStatus: receipt.status,
+        blockNumber: receipt.blockNumber.toString(),
+        gasUsed: receipt.gasUsed.toString(),
+        error: succeeded ? undefined : "Transaction reverted on-chain.",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        txHash,
+        verified: false,
+        error: normalizeError(error),
+      };
+    }
+  }
+
+  async function executeTransaction(params: {
+    to: `0x${string}`;
+    data?: `0x${string}`;
+    valueWei?: string | null;
+  }): Promise<Record<string, unknown>> {
+    const submitted = await sendTransaction(params);
+    const txHash = submitted.txHash;
+    if (!submitted.success || !isHexTxHash(txHash)) {
+      return submitted;
+    }
+
+    const verification = await verifyTransaction(txHash);
+    return {
+      ...submitted,
+      ...verification,
+      response: submitted.response,
+    };
+  }
+
+  async function approveErc20(params: {
+    token: `0x${string}`;
+    spender: `0x${string}`;
+    amountBaseUnits: string;
+  }): Promise<Record<string, unknown>> {
+    const data = encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: "approve",
+      args: [params.spender, BigInt(params.amountBaseUnits)],
+    });
+    return executeTransaction({ to: params.token, data });
+  }
+
+  const tools = [
+    new DynamicStructuredTool({
+      name: "cdp_wallet_overview",
+      description: "Get wallet address and current funding status on Base mainnet (ETH + USDC).",
+      schema: z.object({}),
+      func: async () => {
+        const latest = await readFunding(address);
+        return okResult({ address, network: cfg.cdpNetwork, ...latest });
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "cdp_list_token_balances",
+      description: "List token balances for this wallet on Base mainnet.",
+      schema: z.object({}),
+      func: async () => {
+        const balances = await (account as any).listTokenBalances({ network: cfg.cdpNetwork });
+        return okResult({ balances });
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "cdp_send_transaction",
+      description: "Send an arbitrary EVM transaction from this CDP wallet.",
+      schema: z.object({
+        to: z.string().describe("Destination contract or wallet address"),
+        valueWei: z.string().optional().nullable().describe("ETH value in wei, as string"),
+        data: z.string().optional().nullable().describe("Hex calldata"),
+      }),
+      func: async ({ to, valueWei, data }) => {
+        try {
+          return JSON.stringify(
+            await sendTransaction({
+              to: to as `0x${string}`,
+              valueWei,
+              data: (data ?? "0x") as `0x${string}`,
+            })
+          );
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "cdp_contract_write",
+      description: "Generic contract interaction: provide target + calldata to execute any protocol transaction.",
+      schema: z.object({
+        contract: z.string().describe("Contract address"),
+        data: z.string().describe("Calldata hex"),
+        valueWei: z.string().optional().nullable().describe("Optional ETH value in wei"),
+      }),
+      func: async ({ contract, data, valueWei }) => {
+        try {
+          return JSON.stringify(
+            await sendTransaction({
+              to: contract as `0x${string}`,
+              valueWei,
+              data: data as `0x${string}`,
+            })
+          );
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "cdp_contract_read",
+      description: "Generic read-only contract call using target + calldata.",
+      schema: z.object({
+        contract: z.string().describe("Contract address"),
+        data: z.string().describe("Calldata hex"),
+      }),
+      func: async ({ contract, data }) => {
+        try {
+          const result = await publicClient.call({
+            to: contract as `0x${string}`,
+            data: data as `0x${string}`,
+          });
+          return okResult({ result });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "cdp_erc20_approve",
+      description: "Approve a spender for an ERC20 token amount (base units) and return a tx hash.",
+      schema: z.object({
+        token: z.string().describe("ERC20 token address"),
+        spender: z.string().describe("Spender address"),
+        amountBaseUnits: z.string().describe("Amount in token base units"),
+      }),
+      func: async ({ token, spender, amountBaseUnits }) => {
+        try {
+          return JSON.stringify(
+            await approveErc20({
+              token: token as `0x${string}`,
+              spender: spender as `0x${string}`,
+              amountBaseUnits,
+            })
+          );
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "cdp_transfer",
+      description: "Transfer ETH/USDC/any token from this wallet.",
+      schema: z.object({
+        to: z.string().describe("Destination address"),
+        token: z.string().describe("eth, usdc, or token contract address"),
+        amountBaseUnits: z.string().describe("Amount in base units"),
+      }),
+      func: async ({ to, token, amountBaseUnits }) => {
+        try {
+          const result = await (account as any).transfer({
+            to,
+            token,
+            amount: BigInt(amountBaseUnits),
+            network: cfg.cdpNetwork,
+          });
+          const enriched = withTransactionHash(result);
+          const txHash = findTransactionHash(enriched);
+          return isHexTxHash(txHash)
+            ? okResult({ txHash, response: enriched })
+            : errorResult("Transfer did not return a valid transaction hash.", { response: enriched });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "cdp_swap",
+      description: "Swap tokens on supported liquidity routes through CDP account swap API.",
+      schema: z.object({
+        fromToken: z.string().describe("Input token address"),
+        toToken: z.string().describe("Output token address"),
+        fromAmountBaseUnits: z.string().describe("Input amount in base units"),
+        slippageBps: z.number().optional().nullable().describe("Optional slippage in basis points"),
+      }),
+      func: async ({ fromToken, toToken, fromAmountBaseUnits, slippageBps }) => {
+        try {
+          const result = await (account as any).swap({
+            network: cfg.cdpNetwork,
+            fromToken,
+            toToken,
+            fromAmount: BigInt(fromAmountBaseUnits),
+            slippageBps: slippageBps ?? 100,
+          });
+          const enriched = withTransactionHash(result);
+          const txHash = findTransactionHash(enriched);
+          return isHexTxHash(txHash)
+            ? okResult({ txHash, response: enriched })
+            : errorResult("Swap did not return a valid transaction hash.", { response: enriched });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+    new DynamicStructuredTool({
+      name: "verify_transaction",
+      description: "Verify on-chain whether a transaction hash succeeded on Base mainnet.",
+      schema: z.object({
+        txHash: z.string().describe("Transaction hash"),
+        waitForReceipt: z.boolean().optional().nullable().default(true).describe("Wait briefly for a receipt"),
+        timeoutMs: z.number().optional().nullable().default(45000).describe("Verification timeout in milliseconds"),
+      }),
+      func: async ({ txHash, waitForReceipt, timeoutMs }) => {
+        try {
+          if (!isHexTxHash(txHash)) {
+            return errorResult("Invalid transaction hash.");
+          }
+          return JSON.stringify(
+            await verifyTransaction(txHash, waitForReceipt ?? true, timeoutMs ?? 45000)
+          );
+        } catch (error) {
+          return errorResult(normalizeError(error), { txHash });
+        }
+      },
+    }),
+  ];
+
+  return {
+    kind: "cdp-server-wallet",
+    address,
+    accountName,
+    account,
+    chainId: cfg.chainId,
+    rpcUrl: cfg.rpcUrl,
+    publicClient,
+    sendTransaction,
+    executeTransaction,
+    verifyTransaction,
+    approveErc20,
+    tools,
+    funding,
+    refreshFunding: async () => readFunding(address),
+  };
+}

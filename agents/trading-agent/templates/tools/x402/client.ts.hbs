@@ -1,0 +1,22 @@
+import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { toClientEvmSigner } from "@x402/evm";
+
+let _fetchWithPayment: typeof fetch | null = null;
+
+export function initX402Client(account: any, publicClient: any): void {
+  if (!account) {
+    throw new Error("x402 client initialization requires a funded wallet account.");
+  }
+  const signer = toClientEvmSigner(account, publicClient);
+  const client = new x402Client();
+  registerExactEvmScheme(client, { signer });
+  _fetchWithPayment = wrapFetchWithPayment(fetch, client);
+}
+
+export function getX402Fetch(): typeof fetch {
+  if (!_fetchWithPayment) {
+    throw new Error("x402 client not initialized. Ensure initX402Client(account) is called in wallet setup.");
+  }
+  return _fetchWithPayment;
+}

@@ -1,0 +1,45 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+
+const files = [
+  path.join(process.cwd(), "node_modules", "@langchain", "mcp-adapters", "dist", "types.js"),
+  path.join(process.cwd(), "node_modules", "@langchain", "mcp-adapters", "dist", "types.cjs"),
+];
+
+const replacements = [
+  {
+    from: 'schema._def.typeName === "ZodObject"',
+    to: '(schema._def.typeName === "ZodObject" || schema._def.type === "object")',
+  },
+  {
+    from: 'schema._def.typeName === "ZodLiteral"',
+    to: '(schema._def.typeName === "ZodLiteral" || schema._def.type === "literal")',
+  },
+];
+
+let patchedCount = 0;
+
+for (const file of files) {
+  if (!existsSync(file)) continue;
+
+  let contents = readFileSync(file, "utf8");
+  let changed = false;
+
+  for (const { from, to } of replacements) {
+    if (contents.includes(to)) continue;
+    if (contents.includes(from)) {
+      contents = contents.replace(from, to);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    writeFileSync(file, contents, "utf8");
+    patchedCount += 1;
+    console.log(`[postinstall] patched ${path.relative(process.cwd(), file)}`);
+  }
+}
+
+if (patchedCount === 0) {
+  console.log("[postinstall] no MCP adapter patch needed");
+}

@@ -1,0 +1,57 @@
+---
+name: {{name}}
+description: LangChain trading agent on Base mainnet using {{wallet}} wallet and {{model}}.
+---
+
+## What this agent does
+
+Runs a continuous trading loop on Base using the following strategy:
+
+{{{refinedStrategy}}}
+
+## Configuration
+
+| Setting | Value |
+|---------|-------|
+| Network | Base Mainnet (8453) |
+| Wallet | {{wallet}} |
+| LLM | {{model}} |
+| Test mode | {{testMode}} |
+| Tools | {{#each selectedToolNames}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}{{#unless hasAnyTools}}none{{/unless}} |
+
+## Guardrails
+
+- Slippage tolerance: {{guardrails.slippagePct}}%
+- Stop-loss threshold: {{guardrails.stopLossPct}}%
+- Max position size: {{guardrails.maxPositionPct}}% of wallet
+
+## How to run
+
+```bash
+npm install
+# .env is already generated; fill in missing API keys
+npm start
+```
+
+## Environment variables required
+
+{{#if (eq wallet "cdp-server-wallet")}}
+- `CDP_API_KEY_ID` — Coinbase Developer Platform key ID
+- `CDP_API_KEY_SECRET` — CDP secret
+- `CDP_WALLET_SECRET` — Wallet encryption secret
+{{/if}}
+{{#if isBankr}}
+- `BANKR_API_KEY` — API key for Bankr client
+{{/if}}
+{{#if isSponge}}
+- `SPONGE_API_KEY` — API key for Sponge wallet access
+{{/if}}
+{{#if hasVirtuals}}
+- `VIRTUALS_ACP_BIN` — ACP CLI executable name/path (defaults to `acp`)
+{{/if}}
+{{#if isVenice}}
+- `VENICE_API_KEY` — Venice API key
+- `VENICE_BASE_URL` — optional override (defaults to `https://api.venice.ai/api/v1`)
+{{else}}
+- `LLM_API_KEY` — API key for {{llm}}
+{{/if}}

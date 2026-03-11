@@ -1,0 +1,676 @@
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import {
+  encodeFunctionData,
+  formatEther,
+  formatUnits,
+  parseAbi,
+  parseEther,
+  parseUnits,
+  type Address,
+} from "viem";
+import { okResult, errorResult, normalizeError } from "../../tool-result.js";
+
+const AVANTIS_ADDRESSES = {
+  trading: "0x44914408af82bC9983bbb330e3578E1105e11d4e" as Address,
+  tradingStorage: "0x8a311D7048c35985aa31C131B9A13e03a5f7422d" as Address,
+  usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address,
+} as const;
+
+const SOCKET_API_URL = "https://socket-api-pub.avantisfi.com/socket-api/v1/data";
+const CORE_API_BASE_URL = "https://core.avantisfi.com";
+const FEED_V3_URL = "https://feed-v3.avantisfi.com";
+const DEFAULT_EXECUTION_FEE_WEI = parseEther("0.00035");
+
+const ERC20_ABI = parseAbi([
+  "function balanceOf(address owner) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+]);
+
+const TRADING_ABI = parseAbi([
+  "function openTrade((address trader,uint256 pairIndex,uint256 index,uint256 initialPosToken,uint256 positionSizeUSDC,uint256 openPrice,bool buy,uint256 leverage,uint256 tp,uint256 sl,uint256 timestamp) t,uint8 _type,uint256 _slippageP) payable returns (uint256 orderId)",
+  "function closeTradeMarket(uint256 _pairIndex, uint256 _index, uint256 _amount) payable returns (uint256 orderId)",
+  "function cancelOpenLimitOrder(uint256 _pairIndex, uint256 _index)",
+  "function updateMargin(uint256 _pairIndex, uint256 _index, uint8 _type, uint256 _amount, bytes[] priceUpdateData, uint8 _priceSourcing) payable returns (uint256 orderId)",
+  "function updateTpAndSl(uint256 _pairIndex, uint256 _index, uint256 _newSl, uint256 _newTP, bytes[] priceUpdateData, uint8 _priceSourcing) payable",
+  "function delegations(address trader) view returns (address)",
+]);
+
+type PairInfo = {
+  pairIndex: number;
+  pair: string;
+  from: string;
+  to: string;
+  groupIndex?: number;
+  feeIndex?: number;
+  isUsdcAligned?: boolean;
+  maxLeverage?: number | null;
+  lazerState?: string | null;
+};
+
+type PriceUpdateResponse = {
+  core: { priceUpdateData: string; price: number };
+  pro?: { priceUpdateData: string; price: number } | null;
+};
+
+type UserDataResponse = {
+  positions?: Array<Record<string, unknown>>;
+  limitOrders?: Array<Record<string, unknown>>;
+};
+
+function requireWallet(wallet: any): { address: Address; publicClient: any } {
+  if (!wallet?.address || !wallet?.publicClient) {
+    throw new Error("Avantis tools require the CDP server wallet with address and public client access.");
+  }
+  return {
+    address: wallet.address as Address,
+    publicClient: wallet.publicClient,
+  };
+}
+
+function requireExecution(wallet: any): asserts wallet is {
+  executeTransaction: (params: { to: Address; data?: `0x${string}`; valueWei?: string | null }) => Promise<Record<string, unknown>>;
+} {
+  if (typeof wallet?.executeTransaction !== "function") {
+    throw new Error("Wallet adapter does not support direct transaction execution.");
+  }
+}
+
+function requireApproval(wallet: any): asserts wallet is {
+  approveErc20: (params: { token: Address; spender: Address; amountBaseUnits: string }) => Promise<Record<string, unknown>>;
+} {
+  if (typeof wallet?.approveErc20 !== "function") {
+    throw new Error("Wallet adapter does not support ERC20 approvals.");
+  }
+}
+
+function toPriceUnits(value: string): bigint {
+  return parseUnits(value, 10);
+}
+
+function toUsdcUnits(value: string): bigint {
+  return parseUnits(value, 6);
+}
+
+function toExecutionFeeWei(value?: string | null): bigint {
+  if (!value) return DEFAULT_EXECUTION_FEE_WEI;
+  return parseEther(value);
+}
+
+function isNumericString(value: string): boolean {
+  return /^\d+$/.test(value.trim());
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} while fetching ${url}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function getSocketPairs(): Promise<PairInfo[]> {
+  const data = await fetchJson<{ data?: { pairInfos?: Record<string, any> } }>(SOCKET_API_URL);
+  const entries = Object.entries(data?.data?.pairInfos ?? {});
+
+  return entries
+    .map(([pairIndex, raw]) => {
+      const from = String(raw?.from ?? `PAIR_${pairIndex}`);
+      const to = String(raw?.to ?? "UNKNOWN");
+      return {
+        pairIndex: Number(pairIndex),
+        pair: `${from}/${to}`,
+        from,
+        to,
+        groupIndex: typeof raw?.groupIndex === "number" ? raw.groupIndex : undefined,
+        feeIndex: typeof raw?.feeIndex === "number" ? raw.feeIndex : undefined,
+        isUsdcAligned: raw?.values?.isUSDCAligned ?? raw?.isUSDCAligned ?? undefined,
+        maxLeverage:
+          typeof raw?.leverages?.maxLeverage === "number"
+            ? raw.leverages.maxLeverage / 1e10
+            : null,
+        lazerState: raw?.lazerFeed?.state ?? null,
+      } satisfies PairInfo;
+    })
+    .sort((a, b) => a.pairIndex - b.pairIndex);
+}
+
+async function resolvePair(identifier: string): Promise<PairInfo> {
+  const pairs = await getSocketPairs();
+
+  if (isNumericString(identifier)) {
+    const match = pairs.find((pair) => pair.pairIndex === Number(identifier));
+    if (match) return match;
+  }
+
+  const normalized = identifier.trim().toUpperCase();
+  const match = pairs.find((pair) => pair.pair.toUpperCase() === normalized);
+  if (match) return match;
+
+  throw new Error(`Unknown Avantis pair "${identifier}". Use a pair like ETH/USD or a numeric pair index.`);
+}
+
+async function getPriceUpdate(pairIndex: number): Promise<{
+  latestPrice: string;
+  priceUpdateData: string;
+  priceSourcing: 0 | 1;
+}> {
+  const response = await fetchJson<PriceUpdateResponse>(
+    `${FEED_V3_URL}/v2/pairs/${pairIndex}/price-update-data`
+  );
+  if (response.pro?.priceUpdateData) {
+    return {
+      latestPrice: String(response.pro.price),
+      priceUpdateData: response.pro.priceUpdateData,
+      priceSourcing: 1,
+    };
+  }
+  return {
+    latestPrice: String(response.core.price),
+    priceUpdateData: response.core.priceUpdateData,
+    priceSourcing: 0,
+  };
+}
+
+async function getUserData(address: Address): Promise<UserDataResponse> {
+  return fetchJson<UserDataResponse>(`${CORE_API_BASE_URL}/user-data?trader=${address}`);
+}
+
+function buildTradeTuple(params: {
+  trader: Address;
+  pairIndex: number;
+  collateralUsdc: string;
+  isLong: boolean;
+  leverage: string;
+  takeProfitPrice: string;
+  stopLossPrice?: string | null;
+  openPrice: string;
+}): {
+  trader: Address;
+  pairIndex: bigint;
+  index: bigint;
+  initialPosToken: bigint;
+  positionSizeUSDC: bigint;
+  openPrice: bigint;
+  buy: boolean;
+  leverage: bigint;
+  tp: bigint;
+  sl: bigint;
+  timestamp: bigint;
+} {
+  return {
+    trader: params.trader,
+    pairIndex: BigInt(params.pairIndex),
+    index: 0n,
+    initialPosToken: 0n,
+    positionSizeUSDC: toUsdcUnits(params.collateralUsdc),
+    openPrice: toPriceUnits(params.openPrice),
+    buy: params.isLong,
+    leverage: toPriceUnits(params.leverage),
+    tp: toPriceUnits(params.takeProfitPrice),
+    sl: params.stopLossPrice && params.stopLossPrice !== "0" ? toPriceUnits(params.stopLossPrice) : 0n,
+    timestamp: BigInt(Math.floor(Date.now() / 1000)),
+  };
+}
+
+function summarizePositions(response: UserDataResponse) {
+  const positions = (response.positions ?? []).map((position) => ({
+    pairIndex: position.pairIndex,
+    tradeIndex: position.index,
+    isLong: position.buy,
+    leverage: position.leverage,
+    openPrice: position.openPrice,
+    collateralUsdc: position.collateral ?? position.positionSizeUSDC,
+    takeProfit: position.tp,
+    stopLoss: position.sl,
+    liquidationPrice: position.liquidationPrice,
+  }));
+
+  const limitOrders = (response.limitOrders ?? []).map((order) => ({
+    pairIndex: order.pairIndex,
+    tradeIndex: order.index,
+    isLong: order.buy,
+    leverage: order.leverage,
+    triggerPrice: order.price,
+    collateralUsdc: order.positionSize,
+    takeProfit: order.tp,
+    stopLoss: order.sl,
+  }));
+
+  return { positions, limitOrders };
+}
+
+export function getAvantisTools(wallet: any) {
+  return [
+    new DynamicStructuredTool({
+      name: "avantis_list_pairs",
+      description: "List tradable Avantis perpetual pairs on Base. CDP server wallet only.",
+      schema: z.object({
+        search: z.string().optional().nullable().describe("Optional filter like ETH, BTC, or ETH/USD"),
+        limit: z.number().int().positive().optional().nullable().default(20).describe("Maximum number of pairs to return"),
+      }),
+      func: async ({ search, limit }) => {
+        try {
+          const pairs = await getSocketPairs();
+          const normalized = search?.trim().toUpperCase();
+          const filtered = normalized
+            ? pairs.filter((pair) => pair.pair.toUpperCase().includes(normalized))
+            : pairs;
+          return okResult({
+            total: filtered.length,
+            pairs: filtered.slice(0, limit ?? 20),
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "avantis_get_account_overview",
+      description: "Get wallet balances, Avantis USDC allowance, and open-position counts. CDP server wallet only.",
+      schema: z.object({}),
+      func: async () => {
+        try {
+          const { address, publicClient } = requireWallet(wallet);
+          const [ethBalance, usdcBalance, allowance] = await Promise.all([
+            publicClient.getBalance({ address }),
+            publicClient.readContract({
+              address: AVANTIS_ADDRESSES.usdc,
+              abi: ERC20_ABI,
+              functionName: "balanceOf",
+              args: [address],
+            }),
+            publicClient.readContract({
+              address: AVANTIS_ADDRESSES.usdc,
+              abi: ERC20_ABI,
+              functionName: "allowance",
+              args: [address, AVANTIS_ADDRESSES.tradingStorage],
+            }),
+          ]);
+
+          let userData: UserDataResponse = {};
+          try {
+            userData = await getUserData(address);
+          } catch {
+            // The public user-data API is helpful but not required for balances/allowance.
+          }
+
+          const summary = summarizePositions(userData);
+          return okResult({
+            address,
+            ethBalance: formatEther(ethBalance),
+            usdcBalance: formatUnits(usdcBalance, 6),
+            usdcAllowanceForTrading: formatUnits(allowance, 6),
+            openPositions: summary.positions.length,
+            pendingLimitOrders: summary.limitOrders.length,
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "avantis_get_positions",
+      description: "Get Avantis open positions and pending limit orders for the connected wallet. CDP server wallet only.",
+      schema: z.object({}),
+      func: async () => {
+        try {
+          const { address } = requireWallet(wallet);
+          const userData = await getUserData(address);
+          const summary = summarizePositions(userData);
+          return okResult({
+            address,
+            positions: summary.positions,
+            limitOrders: summary.limitOrders,
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "avantis_check_usdc_approval",
+      description: "Check whether the wallet has enough USDC allowance for Avantis trading. CDP server wallet only.",
+      schema: z.object({
+        amountUsdc: z.string().optional().nullable().default("0").describe("Required allowance in human-readable USDC"),
+      }),
+      func: async ({ amountUsdc }) => {
+        try {
+          const { address, publicClient } = requireWallet(wallet);
+          const allowance = await publicClient.readContract({
+            address: AVANTIS_ADDRESSES.usdc,
+            abi: ERC20_ABI,
+            functionName: "allowance",
+            args: [address, AVANTIS_ADDRESSES.tradingStorage],
+          });
+          const required = toUsdcUnits(amountUsdc ?? "0");
+          return okResult({
+            address,
+            spender: AVANTIS_ADDRESSES.tradingStorage,
+            allowanceUsdc: formatUnits(allowance, 6),
+            requiredUsdc: formatUnits(required, 6),
+            sufficient: allowance >= required,
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "avantis_approve_usdc",
+      description: "Approve USDC for Avantis TradingStorage. CDP server wallet only.",
+      schema: z.object({
+        amountUsdc: z.string().describe("Allowance amount in human-readable USDC"),
+      }),
+      func: async ({ amountUsdc }) => {
+        try {
+          requireApproval(wallet);
+          const execution = await wallet.approveErc20({
+            token: AVANTIS_ADDRESSES.usdc,
+            spender: AVANTIS_ADDRESSES.tradingStorage,
+            amountBaseUnits: toUsdcUnits(amountUsdc).toString(),
+          });
+          return JSON.stringify({
+            ...execution,
+            protocol: "Avantis",
+            action: "approve_usdc",
+            amountUsdc,
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "avantis_open_trade",
+      description: "Open an Avantis perpetual trade on Base. Supports market, limit, stop-limit, and market-zero-fee orders. CDP server wallet only.",
+      schema: z.object({
+        pair: z.string().describe("Pair symbol like ETH/USD or a numeric pair index"),
+        collateralUsdc: z.string().describe("Collateral amount in human-readable USDC"),
+        isLong: z.boolean().describe("True for long, false for short"),
+        leverage: z.string().describe("Leverage multiplier, e.g. '10'"),
+        takeProfitPrice: z.string().describe("Take-profit price; required by Avantis"),
+        stopLossPrice: z.string().optional().nullable().default("0").describe("Stop-loss price, or '0' to omit"),
+        orderType: z.enum(["market", "limit", "stop-limit", "market-zero-fee"]).optional().nullable().default("market"),
+        openPrice: z.string().optional().nullable().describe("Required for limit/stop-limit orders"),
+        slippagePct: z.number().optional().nullable().default(1).describe("Maximum slippage percentage"),
+        executionFeeEth: z.string().optional().nullable().describe("Optional execution fee in ETH; defaults to 0.00035"),
+      }),
+      func: async ({
+        pair,
+        collateralUsdc,
+        isLong,
+        leverage,
+        takeProfitPrice,
+        stopLossPrice,
+        orderType,
+        openPrice,
+        slippagePct,
+        executionFeeEth,
+      }) => {
+        try {
+          const { address } = requireWallet(wallet);
+          requireExecution(wallet);
+
+          if (takeProfitPrice === "0") {
+            return errorResult("Avantis requires a non-zero take-profit price.");
+          }
+
+          const pairInfo = await resolvePair(pair);
+          const selectedOrderType = orderType ?? "market";
+          const orderTypeValue =
+            selectedOrderType === "market" ? 0 :
+            selectedOrderType === "stop-limit" ? 1 :
+            selectedOrderType === "limit" ? 2 :
+            3;
+
+          let resolvedOpenPrice = openPrice ?? undefined;
+          if (!resolvedOpenPrice && (selectedOrderType === "market" || selectedOrderType === "market-zero-fee")) {
+            const latest = await getPriceUpdate(pairInfo.pairIndex);
+            resolvedOpenPrice = latest.latestPrice;
+          }
+          if (!resolvedOpenPrice) {
+            return errorResult("openPrice is required for Avantis limit and stop-limit orders.");
+          }
+
+          const trade = buildTradeTuple({
+            trader: address,
+            pairIndex: pairInfo.pairIndex,
+            collateralUsdc,
+            isLong,
+            leverage,
+            takeProfitPrice,
+            stopLossPrice,
+            openPrice: resolvedOpenPrice,
+          });
+
+          const data = encodeFunctionData({
+            abi: TRADING_ABI,
+            functionName: "openTrade",
+            args: [
+              trade,
+              orderTypeValue,
+              toPriceUnits(String(slippagePct ?? 1)),
+            ],
+          });
+
+          const execution = await wallet.executeTransaction({
+            to: AVANTIS_ADDRESSES.trading,
+            data,
+            valueWei: toExecutionFeeWei(executionFeeEth).toString(),
+          });
+
+          return JSON.stringify({
+            ...execution,
+            protocol: "Avantis",
+            action: "open_trade",
+            pair: pairInfo.pair,
+            pairIndex: pairInfo.pairIndex,
+            orderType: selectedOrderType,
+            collateralUsdc,
+            leverage,
+            isLong,
+            takeProfitPrice,
+            stopLossPrice: stopLossPrice ?? "0",
+            openPrice: resolvedOpenPrice,
+            executionFeeEth: formatEther(toExecutionFeeWei(executionFeeEth)),
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "avantis_close_trade",
+      description: "Close an Avantis trade fully or partially. CDP server wallet only.",
+      schema: z.object({
+        pair: z.string().describe("Pair symbol like ETH/USD or a numeric pair index"),
+        tradeIndex: z.number().int().nonnegative().describe("Trade index within the pair"),
+        collateralToCloseUsdc: z.string().describe("Collateral amount to close in human-readable USDC"),
+        executionFeeEth: z.string().optional().nullable().describe("Optional execution fee in ETH; defaults to 0.00035"),
+      }),
+      func: async ({ pair, tradeIndex, collateralToCloseUsdc, executionFeeEth }) => {
+        try {
+          const pairInfo = await resolvePair(pair);
+          requireExecution(wallet);
+
+          const data = encodeFunctionData({
+            abi: TRADING_ABI,
+            functionName: "closeTradeMarket",
+            args: [BigInt(pairInfo.pairIndex), BigInt(tradeIndex), toUsdcUnits(collateralToCloseUsdc)],
+          });
+
+          const execution = await wallet.executeTransaction({
+            to: AVANTIS_ADDRESSES.trading,
+            data,
+            valueWei: toExecutionFeeWei(executionFeeEth).toString(),
+          });
+
+          return JSON.stringify({
+            ...execution,
+            protocol: "Avantis",
+            action: "close_trade",
+            pair: pairInfo.pair,
+            pairIndex: pairInfo.pairIndex,
+            tradeIndex,
+            collateralToCloseUsdc,
+            executionFeeEth: formatEther(toExecutionFeeWei(executionFeeEth)),
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "avantis_update_tp_sl",
+      description: "Update take-profit and stop-loss for an open Avantis trade. CDP server wallet only.",
+      schema: z.object({
+        pair: z.string().describe("Pair symbol like ETH/USD or a numeric pair index"),
+        tradeIndex: z.number().int().nonnegative().describe("Trade index within the pair"),
+        takeProfitPrice: z.string().describe("New take-profit price; must be non-zero"),
+        stopLossPrice: z.string().optional().nullable().default("0").describe("New stop-loss price, or '0' to remove it"),
+      }),
+      func: async ({ pair, tradeIndex, takeProfitPrice, stopLossPrice }) => {
+        try {
+          if (takeProfitPrice === "0") {
+            return errorResult("Take-profit price cannot be 0 for Avantis TP/SL updates.");
+          }
+
+          const pairInfo = await resolvePair(pair);
+          requireExecution(wallet);
+          const latest = await getPriceUpdate(pairInfo.pairIndex);
+
+          const data = encodeFunctionData({
+            abi: TRADING_ABI,
+            functionName: "updateTpAndSl",
+            args: [
+              BigInt(pairInfo.pairIndex),
+              BigInt(tradeIndex),
+              stopLossPrice && stopLossPrice !== "0" ? toPriceUnits(stopLossPrice) : 0n,
+              toPriceUnits(takeProfitPrice),
+              [latest.priceUpdateData as `0x${string}`],
+              latest.priceSourcing,
+            ],
+          });
+
+          const execution = await wallet.executeTransaction({
+            to: AVANTIS_ADDRESSES.trading,
+            data,
+            valueWei: "1",
+          });
+
+          return JSON.stringify({
+            ...execution,
+            protocol: "Avantis",
+            action: "update_tp_sl",
+            pair: pairInfo.pair,
+            pairIndex: pairInfo.pairIndex,
+            tradeIndex,
+            takeProfitPrice,
+            stopLossPrice: stopLossPrice ?? "0",
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "avantis_update_margin",
+      description: "Deposit or withdraw collateral from an open Avantis trade. CDP server wallet only.",
+      schema: z.object({
+        pair: z.string().describe("Pair symbol like ETH/USD or a numeric pair index"),
+        tradeIndex: z.number().int().nonnegative().describe("Trade index within the pair"),
+        direction: z.enum(["deposit", "withdraw"]).describe("Margin update direction"),
+        collateralChangeUsdc: z.string().describe("Collateral delta in human-readable USDC"),
+      }),
+      func: async ({ pair, tradeIndex, direction, collateralChangeUsdc }) => {
+        try {
+          const pairInfo = await resolvePair(pair);
+          requireExecution(wallet);
+          const latest = await getPriceUpdate(pairInfo.pairIndex);
+
+          const data = encodeFunctionData({
+            abi: TRADING_ABI,
+            functionName: "updateMargin",
+            args: [
+              BigInt(pairInfo.pairIndex),
+              BigInt(tradeIndex),
+              direction === "deposit" ? 0 : 1,
+              toUsdcUnits(collateralChangeUsdc),
+              [latest.priceUpdateData as `0x${string}`],
+              latest.priceSourcing,
+            ],
+          });
+
+          const execution = await wallet.executeTransaction({
+            to: AVANTIS_ADDRESSES.trading,
+            data,
+            valueWei: "1",
+          });
+
+          return JSON.stringify({
+            ...execution,
+            protocol: "Avantis",
+            action: "update_margin",
+            pair: pairInfo.pair,
+            pairIndex: pairInfo.pairIndex,
+            tradeIndex,
+            direction,
+            collateralChangeUsdc,
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "avantis_cancel_limit_order",
+      description: "Cancel an open Avantis limit or stop-limit order. CDP server wallet only.",
+      schema: z.object({
+        pair: z.string().describe("Pair symbol like ETH/USD or a numeric pair index"),
+        tradeIndex: z.number().int().nonnegative().describe("Order index within the pair"),
+      }),
+      func: async ({ pair, tradeIndex }) => {
+        try {
+          const pairInfo = await resolvePair(pair);
+          requireExecution(wallet);
+
+          const data = encodeFunctionData({
+            abi: TRADING_ABI,
+            functionName: "cancelOpenLimitOrder",
+            args: [BigInt(pairInfo.pairIndex), BigInt(tradeIndex)],
+          });
+
+          const execution = await wallet.executeTransaction({
+            to: AVANTIS_ADDRESSES.trading,
+            data,
+            valueWei: "0",
+          });
+
+          return JSON.stringify({
+            ...execution,
+            protocol: "Avantis",
+            action: "cancel_limit_order",
+            pair: pairInfo.pair,
+            pairIndex: pairInfo.pairIndex,
+            tradeIndex,
+          });
+        } catch (error) {
+          return errorResult(normalizeError(error));
+        }
+      },
+    }),
+  ];
+}

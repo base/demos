@@ -1,0 +1,64 @@
+const TEST_MODE = /^(1|true|yes)$/i.test(process.env.TEST_MODE ?? "{{testMode}}");
+const DEFAULT_SLIPPAGE_PCT = TEST_MODE
+  ? {{defaultSlippagePct}}
+  : {{guardrails.slippagePct}};
+const DEFAULT_STOP_LOSS_PCT = TEST_MODE
+  ? {{defaultStopLossPct}}
+  : {{guardrails.stopLossPct}};
+const DEFAULT_MAX_POSITION_PCT = TEST_MODE
+  ? {{defaultMaxPositionPct}}
+  : {{guardrails.maxPositionPct}};
+
+const SLIPPAGE_PCT = parseFloat(process.env.SLIPPAGE_PCT ?? String(DEFAULT_SLIPPAGE_PCT));
+const STOP_LOSS_PCT = parseFloat(process.env.STOP_LOSS_PCT ?? String(DEFAULT_STOP_LOSS_PCT));
+const MAX_POSITION_PCT = parseFloat(process.env.MAX_POSITION_PCT ?? String(DEFAULT_MAX_POSITION_PCT));
+
+export function checkSlippage(expectedPrice: number, actualPrice: number): boolean {
+  const slippage = Math.abs((actualPrice - expectedPrice) / expectedPrice) * 100;
+  if (slippage > SLIPPAGE_PCT) {
+    console.warn(
+      `[guardrail] Slippage ${slippage.toFixed(2)}% exceeds limit ${SLIPPAGE_PCT}%. Blocking trade.`
+    );
+    return false;
+  }
+  return true;
+}
+
+export function checkStopLoss(entryPrice: number, currentPrice: number): boolean {
+  const drawdown = ((entryPrice - currentPrice) / entryPrice) * 100;
+  if (drawdown > STOP_LOSS_PCT) {
+    console.warn(
+      `[guardrail] Drawdown ${drawdown.toFixed(2)}% exceeds stop-loss ${STOP_LOSS_PCT}%. Triggering exit.`
+    );
+    return true; // true = stop-loss triggered
+  }
+  return false;
+}
+
+export function checkPositionSize(
+  tradeValue: number,
+  walletValue: number
+): boolean {
+  const positionPct = (tradeValue / walletValue) * 100;
+  if (positionPct > MAX_POSITION_PCT) {
+    console.warn(
+      `[guardrail] Position ${positionPct.toFixed(2)}% exceeds max ${MAX_POSITION_PCT}%. Blocking trade.`
+    );
+    return false;
+  }
+  return true;
+}
+
+export function wrapWithGuardrails(tools: any[]): any[] {
+  // Guardrails are checked within the strategy prompt and
+  // available as utility functions for custom tool wrappers.
+  // The agent's system prompt already includes guardrail constraints.
+  return tools;
+}
+
+export const guardrailConfig = {
+  testMode: TEST_MODE,
+  slippagePct: SLIPPAGE_PCT,
+  stopLossPct: STOP_LOSS_PCT,
+  maxPositionPct: MAX_POSITION_PCT,
+};

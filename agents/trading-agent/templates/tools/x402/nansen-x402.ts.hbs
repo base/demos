@@ -1,0 +1,154 @@
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import { getX402Fetch } from "./client.js";
+import { okResult, errorResult, normalizeError } from "../../tool-result.js";
+
+const NANSEN_X402_URL = process.env.NANSEN_X402_URL ?? "https://api.nansen.ai/x402";
+
+function formatApiError(status: number, statusText: string): string {
+  if (status === 402) {
+    return `Nansen x402 payment failed: ${status} ${statusText}. Check wallet funding and x402 signer setup.`;
+  }
+  return `Nansen API error: ${status} ${statusText}`;
+}
+
+export function getNansenX402Tools() {
+  return [
+    new DynamicStructuredTool({
+      name: "nansen_token_screener",
+      description:
+        "Screen and filter tokens using Nansen's on-chain analytics (x402 pay-per-request). Returns smart money flows, holder counts, and activity signals.",
+      schema: z.object({
+        chain: z.string().describe("Blockchain to screen (e.g. 'ethereum', 'base', 'solana')"),
+        minSmartMoneyHolders: z.number().optional().nullable().describe("Minimum number of smart money holders"),
+        minVolume24h: z.number().optional().nullable().describe("Minimum 24h volume in USD"),
+        limit: z.number().optional().nullable().describe("Number of results to return (default 20)"),
+      }),
+      func: async ({ chain, minSmartMoneyHolders, minVolume24h, limit }) => {
+        try {
+          const fetchWithPayment = getX402Fetch();
+          const params = new URLSearchParams({ chain });
+          if (minSmartMoneyHolders !== undefined) params.set("minSmartMoneyHolders", String(minSmartMoneyHolders));
+          if (minVolume24h !== undefined) params.set("minVolume24h", String(minVolume24h));
+          if (limit !== undefined) params.set("limit", String(limit));
+          const url = `${NANSEN_X402_URL}/token-screener?${params.toString()}`;
+          const res = await fetchWithPayment(url, { signal: AbortSignal.timeout(15000) });
+          if (!res.ok) {
+            return errorResult(formatApiError(res.status, res.statusText));
+          }
+          const data = await res.json();
+          return okResult({ data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "nansen_address_balances",
+      description:
+        "Get on-chain token balances and portfolio value for an address via Nansen (x402 pay-per-request).",
+      schema: z.object({
+        address: z.string().describe("Wallet address to look up (0x... for EVM, base58 for Solana)"),
+        chain: z.string().optional().nullable().describe("Chain to query (e.g. 'ethereum', 'base'). Omit for all chains."),
+      }),
+      func: async ({ address, chain }) => {
+        try {
+          const fetchWithPayment = getX402Fetch();
+          const params = new URLSearchParams({ address });
+          if (chain) params.set("chain", chain);
+          const url = `${NANSEN_X402_URL}/address/balances?${params.toString()}`;
+          const res = await fetchWithPayment(url, { signal: AbortSignal.timeout(15000) });
+          if (!res.ok) {
+            return errorResult(formatApiError(res.status, res.statusText));
+          }
+          const data = await res.json();
+          return okResult({ data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "nansen_smart_money_holdings",
+      description:
+        "Get token holdings of smart money wallets (top traders, funds, early investors) via Nansen (x402 pay-per-request).",
+      schema: z.object({
+        token: z.string().describe("Token address or symbol to query smart money holdings for"),
+        chain: z.string().describe("Blockchain (e.g. 'ethereum', 'base')"),
+        limit: z.number().optional().nullable().describe("Number of top holders to return (default 20)"),
+      }),
+      func: async ({ token, chain, limit }) => {
+        try {
+          const fetchWithPayment = getX402Fetch();
+          const params = new URLSearchParams({ token, chain });
+          if (limit !== undefined) params.set("limit", String(limit));
+          const url = `${NANSEN_X402_URL}/smart-money/holdings?${params.toString()}`;
+          const res = await fetchWithPayment(url, { signal: AbortSignal.timeout(15000) });
+          if (!res.ok) {
+            return errorResult(formatApiError(res.status, res.statusText));
+          }
+          const data = await res.json();
+          return okResult({ data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "nansen_token_ohlcv",
+      description:
+        "Get OHLCV candlestick price data for a token via Nansen (x402 pay-per-request).",
+      schema: z.object({
+        token: z.string().describe("Token address or symbol"),
+        chain: z.string().describe("Blockchain (e.g. 'ethereum', 'base')"),
+        interval: z.string().describe("Candle interval: '1h', '4h', '1d', '1w'"),
+        limit: z.number().optional().nullable().describe("Number of candles to return (default 100)"),
+      }),
+      func: async ({ token, chain, interval, limit }) => {
+        try {
+          const fetchWithPayment = getX402Fetch();
+          const params = new URLSearchParams({ token, chain, interval });
+          if (limit !== undefined) params.set("limit", String(limit));
+          const url = `${NANSEN_X402_URL}/token/ohlcv?${params.toString()}`;
+          const res = await fetchWithPayment(url, { signal: AbortSignal.timeout(15000) });
+          if (!res.ok) {
+            return errorResult(formatApiError(res.status, res.statusText));
+          }
+          const data = await res.json();
+          return okResult({ data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+
+    new DynamicStructuredTool({
+      name: "nansen_search",
+      description:
+        "Search Nansen's database for tokens, entities, and addresses by keyword (x402 pay-per-request).",
+      schema: z.object({
+        query: z.string().describe("Search query — token name, symbol, contract address, or entity name"),
+        type: z.enum(["token", "address", "entity", "all"]).optional().nullable().describe("Result type filter (default: all)"),
+      }),
+      func: async ({ query, type }) => {
+        try {
+          const fetchWithPayment = getX402Fetch();
+          const params = new URLSearchParams({ query });
+          if (type) params.set("type", type);
+          const url = `${NANSEN_X402_URL}/search?${params.toString()}`;
+          const res = await fetchWithPayment(url, { signal: AbortSignal.timeout(15000) });
+          if (!res.ok) {
+            return errorResult(formatApiError(res.status, res.statusText));
+          }
+          const data = await res.json();
+          return okResult({ data });
+        } catch (e) {
+          return errorResult(normalizeError(e));
+        }
+      },
+    }),
+  ];
+}
