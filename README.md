@@ -46,6 +46,7 @@ This repository contains example applications demonstrating various [Base] and [
 | **Mini Zora** | MiniKit | `minikit/my-mini-zora/` | MiniKit template integrated with Zora protocol for NFT interactions |
 | **Simple Mini App** | MiniKit | `minikit/my-simple-mini-app/` | Basic MiniKit template with essential features and notifications |
 | **Three Card Monte** | MiniKit | `minikit/three-card-monte/` | Interactive card game mini app with onchain rewards and leaderboard |
+| **Onchain Voting Demo** | MiniKit | `mini-apps/onchain-voting-demo/` | Governance voting system with proposal creation, voting, and result tracking |
 
 ## Getting Started
 
