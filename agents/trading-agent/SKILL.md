@@ -14,15 +14,14 @@ description: Scaffold Base trading agents from a plain-English strategy using th
 
 ## Preferred Invocation
 
-Prefer the local package workflow when you are already in this repo:
+Use the normal local package workflow:
 
 ```bash
-cd agents/trading-agent
-npm install
+git clone https://github.com/base/demos.git
+cd demos/agents/trading-agent
+npm i
 npm run dev
 ```
-
-Use the installer script only when the user explicitly wants the one-liner flow and does not need the scaffold source locally.
 
 ## What The CLI Does
 
