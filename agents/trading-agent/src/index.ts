@@ -307,7 +307,7 @@ async function runInteractive(): Promise<void> {
   const displayDir = path.relative(process.cwd(), outDir) || ".";
 
   console.log(
-    `\nNext steps\ncd ${displayDir}\nnpm install\n# Review .env (LLM key is prefilled, add wallet keys)\nnpm start\n`
+    `\nNext steps\ncd ${displayDir}\nnpm i\n# Review .env (LLM key is prefilled, add wallet keys)\nnpm start\n`
   );
 
   if (config.wallet === "cdp-server-wallet") {

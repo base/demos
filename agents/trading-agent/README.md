@@ -4,39 +4,12 @@ A CLI that scaffolds a fully configured LangChain trading agent on Base from a p
 
 ## Quick Start
 
-You can use the scaffold in two ways without publishing it to npm.
-
-### Option 1: Run the installer script directly
-
-Best when you want a one-liner and do not need to keep the scaffold source locally.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh | bash
-```
-
-For interactive mode, prefer process substitution so the CLI keeps direct access to your terminal:
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh)
-```
-
-Pass CLI arguments through with `bash -s --`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/base/demos/master/agents/trading-agent/install.sh | \
-  bash -s -- --no-interactive --config ./agent.json
-```
-
-The script clones the repo into a temporary directory, enters `agents/trading-agent`, installs dependencies, builds the CLI, and runs it with the arguments you pass through.
-
-### Option 2: Clone the repo and run this package locally
-
-Best when you are iterating on the scaffold, testing prompt flow changes, or invoking it repeatedly from another project or agent.
+Clone the repo and run this package locally:
 
 ```bash
 git clone https://github.com/base/demos.git
 cd demos/agents/trading-agent
-npm install
+npm i
 npm run dev
 ```
 
