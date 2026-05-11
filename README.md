@@ -34,18 +34,26 @@ This repository contains example applications demonstrating various [Base] and [
 | Demo Name | Type | Location | Description |
 |-----------|------|----------|-------------|
 | **Agent Spend Permissions** | Base Account | `base-account/agent-spend-permissions/` | AI-powered Zora coin purchasing with Base Account spend permissions and gas-free transactions |
+| **Auto Sub Accounts** | Base Account | `base-account/auto-sub-accounts/` | Sub Accounts integration with automatic sub account creation and USDC transfers on Base Sepolia |
+| **Base Account RainbowKit** | Base Account | `base-account/base-account-rainbow-template/` | Next.js template for integrating Base Account with RainbowKit |
+| **Base Account Reown** | Base Account | `base-account/base-account-reown/` | AppKit example using wagmi with Next.js App Router |
+| **Base Account Thirdweb** | Base Account | `base-account/base-account-thirdweb-template/` | Authentication with Thirdweb using Email OTP and Base Account wallet |
+| **Base Account Wagmi** | Base Account | `base-account/base-account-wagmi-template/` | Next.js template bootstrapped with create-wagmi |
 | **Trading Agent** | Agents | `agents/trading-agent/` | CLI that scaffolds a fully configured LangChain trading agent on Base from a plain-English strategy |
 | **Base Pay Amazon** | Base Account | `base-account/base-pay-amazon/` | Chrome extension and checkout app that adds Base Pay to Amazon product pages |
 | **Base App Coins** | Base Account | `base-app-coins/` | Index and load metadata for Uniswap v4 pools related to coins created via the Base App |
 | **Hangman Onchain** | Paymaster | `paymaster/hangman-onchain/` | Classic hangman game with onchain win recording using Coinbase CDP |
 | **Lingos Game** | Paymaster | `paymaster/onchain-game-lingos/` | Phrase completion game testing knowledge of international phrases and expressions |
-| **Full Mini App Demo** | MiniKit | `minikit/mini-app-full-demo/` | Comprehensive Base Mini App demo showcasing all functionality in Base App |
-| **Mini App Route** | MiniKit | `minikit/mini-app-route/` | Basic Next.js mini app template with routing examples |
-| **Mini App Wrapped** | MiniKit | `minikit/mini-app-wrapped/` | Simple Next.js mini app with MiniKit provider wrapper |
-| **Mini Neynar** | MiniKit | `minikit/mini-neynar/` | MiniKit template with Neynar API integration for Farcaster data |
-| **Mini Zora** | MiniKit | `minikit/my-mini-zora/` | MiniKit template integrated with Zora protocol for NFT interactions |
-| **Simple Mini App** | MiniKit | `minikit/my-simple-mini-app/` | Basic MiniKit template with essential features and notifications |
-| **Three Card Monte** | MiniKit | `minikit/three-card-monte/` | Interactive card game mini app with onchain rewards and leaderboard |
+| **Full Mini App Demo (Farcaster SDK)** | Mini Apps | `mini-apps/templates/farcaster-sdk/mini-app-full-demo/` | Comprehensive Base Mini App demo using the Farcaster SDK |
+| **Full Mini App Demo (MiniKit)** | Mini Apps | `mini-apps/templates/minikit/mini-app-full-demo-minikit/` | Comprehensive Base Mini App demo using MiniKit |
+| **Waitlist Mini App Quickstart** | Mini Apps | `mini-apps/templates/minikit/new-mini-app-quickstart/` | Waitlist sign-up mini app built with OnchainKit and Farcaster SDK |
+| **Vite Mini App** | Mini Apps | `mini-apps/templates/minikit/vite-mini/` | Minimal React + Vite mini app template |
+| **Mini App Route** | Mini Apps | `mini-apps/workshops/mini-app-route/` | Basic Next.js mini app template with routing examples |
+| **Mini App Wrapped** | Mini Apps | `mini-apps/workshops/mini-app-wrapped/` | Simple Next.js mini app with MiniKit provider wrapper |
+| **Mini Neynar** | Mini Apps | `mini-apps/workshops/mini-neynar/` | MiniKit template with Neynar API integration for Farcaster data |
+| **Mini Zora** | Mini Apps | `mini-apps/workshops/my-mini-zora/` | MiniKit template integrated with Zora protocol for NFT interactions |
+| **Simple Mini App** | Mini Apps | `mini-apps/workshops/my-simple-mini-app/` | Basic MiniKit template with essential features and notifications |
+| **Three Card Monte** | Mini Apps | `mini-apps/workshops/three-card-monte/` | Interactive card game mini app with onchain rewards and leaderboard |
 
 ## Getting Started
 
