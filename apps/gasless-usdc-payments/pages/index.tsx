@@ -73,7 +73,7 @@ export default function Home() {
 
       const signature = await walletClient.signTypedData({
         account,
-        domain: usdcDomain(network.chain.id, network.usdc),
+        domain: usdcDomain(network.chain.id, network.usdc, network.usdcName),
         types: TRANSFER_WITH_AUTHORIZATION_TYPES,
         primaryType: 'TransferWithAuthorization',
         message,
