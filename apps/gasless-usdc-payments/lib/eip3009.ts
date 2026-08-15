@@ -5,11 +5,15 @@ export const NETWORKS = {
     chain: base,
     // USDC on Base mainnet
     usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const,
+    // EIP-712 domain name — must match the token contract's name() exactly
+    usdcName: 'USD Coin' as const,
   },
   'base-sepolia': {
     chain: baseSepolia,
-    // USDC on Base Sepolia
+    // USDC on Base Sepolia (Circle testnet deployment)
     usdc: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as const,
+    // Circle's testnet USDC returns "USDC" from name(), not "USD Coin"
+    usdcName: 'USDC' as const,
   },
 } as const;
 
@@ -19,12 +23,14 @@ export const USDC_DECIMALS = 6;
 
 /**
  * EIP-712 domain for USDC's EIP-3009 implementation.
- * Note: `name` must exactly match the token contract's name() — "USD Coin" for
- * USDC on Base. (Other tokens differ: e.g. EURC on Base uses name "EURC".)
+ * Note: `name` must exactly match the token contract's name() — this differs
+ * between networks (e.g. Base mainnet uses "USD Coin", Base Sepolia testnet
+ * uses "USDC"). Pass the `usdcName` from the NETWORKS entry for the active
+ * network to avoid an "invalid signature" revert.
  */
-export function usdcDomain(chainId: number, usdcAddress: `0x${string}`) {
+export function usdcDomain(chainId: number, usdcAddress: `0x${string}`, usdcName: string) {
   return {
-    name: 'USD Coin',
+    name: usdcName,
     version: '2',
     chainId,
     verifyingContract: usdcAddress,
