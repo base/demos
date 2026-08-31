@@ -37,8 +37,6 @@ This repository contains example applications demonstrating various [Base] and [
 | **Trading Agent** | Agents | `agents/trading-agent/` | CLI that scaffolds a fully configured LangChain trading agent on Base from a plain-English strategy |
 | **Base Pay Amazon** | Base Account | `base-account/base-pay-amazon/` | Chrome extension and checkout app that adds Base Pay to Amazon product pages |
 | **Base App Coins** | Base Account | `base-app-coins/` | Index and load metadata for Uniswap v4 pools related to coins created via the Base App |
-| **Hangman Onchain** | Paymaster | `paymaster/hangman-onchain/` | Classic hangman game with onchain win recording using Coinbase CDP |
-| **Lingos Game** | Paymaster | `paymaster/onchain-game-lingos/` | Phrase completion game testing knowledge of international phrases and expressions |
 | **Full Mini App Demo** | MiniKit | `minikit/mini-app-full-demo/` | Comprehensive Base Mini App demo showcasing all functionality in Base App |
 | **Mini App Route** | MiniKit | `minikit/mini-app-route/` | Basic Next.js mini app template with routing examples |
 | **Mini App Wrapped** | MiniKit | `minikit/mini-app-wrapped/` | Simple Next.js mini app with MiniKit provider wrapper |
