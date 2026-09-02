@@ -1,9 +1,11 @@
+// src/app/api/search/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createPublicClient, http, parseAbi } from 'viem'
 import { base } from 'viem/chains'
 import { toClientEvmSigner } from '@x402/evm'
 import { quoteSearchJobs, searchJobs, formatJobResults, flattenJobResults } from '@/lib/exa'
 import { getCdpClient, getServerWalletForUser } from '@/lib/cdp'
+import { readSessionAddress } from '@/lib/session'
 
 const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const
 const USER_PULL_STEP_USDC = BigInt(100_000)
@@ -12,15 +14,6 @@ const BALANCE_VISIBILITY_DELAY_MS = 1_000
 const ERC20_ABI = parseAbi([
   'function balanceOf(address account) view returns (uint256)',
 ])
-
-function parseSessionUserAddress(session?: string): string | null {
-  if (!session) {
-    return null
-  }
-
-  const [userAddress] = Buffer.from(session, 'base64').toString().split(':')
-  return userAddress || null
-}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -67,8 +60,12 @@ async function waitForUsdcBalanceAtLeast(
 
 export async function POST(request: NextRequest) {
   try {
-    const session = request.cookies.get('session')?.value
-    const userAddress = parseSessionUserAddress(session)
+    // This route spends the user's USDC on Base mainnet through their spend
+    // permission, keyed entirely by the session address. That address must come
+    // from a token this server signed — the previous `parseSessionUserAddress`
+    // base64-decoded an unsigned cookie, so any caller could name any address and
+    // drive that user's server wallet.
+    const userAddress = readSessionAddress(request)
 
     if (!userAddress) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -224,9 +221,12 @@ export async function POST(request: NextRequest) {
       smartAccountBalanceUSDC: Number(smartAccountBalance) / 1_000_000,
     })
   } catch (error) {
+    // Logged server-side only. Upstream x402, CDP and RPC errors carry wallet
+    // addresses, request identifiers and paymaster URLs, none of which belong in
+    // a response body.
     console.error('Job search error:', error)
     return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to search jobs',
+      error: 'Failed to search jobs',
     }, { status: 500 })
   }
 }

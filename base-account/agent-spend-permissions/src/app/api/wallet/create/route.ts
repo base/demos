@@ -1,18 +1,16 @@
+// src/app/api/wallet/create/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerWalletForUser, getServerWalletForUser } from '@/lib/cdp'
+import { readSessionAddress } from '@/lib/session'
 
 export async function POST(request: NextRequest) {
   try {
-    // Get session from cookie
-    const session = request.cookies.get('session')?.value
-    if (!session) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-
-    // Decode user address from session (simplified)
-    const [userAddress] = Buffer.from(session, 'base64').toString().split(':')
+    // The address now comes from a signature-verified session token. Previously
+    // it was base64-decoded straight out of an unsigned cookie, so a caller could
+    // name any address and have a server wallet provisioned for it.
+    const userAddress = readSessionAddress(request)
     if (!userAddress) {
-      return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
     // Get or create server wallet for user
@@ -35,16 +33,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Get session from cookie
-    const session = request.cookies.get('session')?.value
-    if (!session) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-
-    // Decode user address from session (simplified)
-    const [userAddress] = Buffer.from(session, 'base64').toString().split(':')
+    // Same signature-verified session as POST; see the note above.
+    const userAddress = readSessionAddress(request)
     if (!userAddress) {
-      return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
     // Get existing server wallet for user
