@@ -1,11 +1,14 @@
+// src/app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { generateChatResponse, ChatMessage } from '@/lib/openai'
+import { readSessionAddress } from '@/lib/session'
 
 export async function POST(request: NextRequest) {
   try {
-    // Get session from cookie
-    const session = request.cookies.get('session')?.value
-    if (!session) {
+    // Verify the session cookie's signature rather than just checking that a
+    // cookie is present. The previous check accepted any non-empty value.
+    const userAddress = readSessionAddress(request)
+    if (!userAddress) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
