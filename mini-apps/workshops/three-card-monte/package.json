@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.9.0",
-    "@coinbase/onchainkit": "latest",
+    "@coinbase/onchainkit": "^0.38.13",
     "@farcaster/frame-sdk": "^0.0.35",
     "@radix-ui/react-slot": "^1.2.2",
     "@tanstack/react-query": "^5",
