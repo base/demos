@@ -1,0 +1,8 @@
+{
+  "name": "@vibenet/aa",
+  "private": true,
+  "type": "module",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts"
+}
