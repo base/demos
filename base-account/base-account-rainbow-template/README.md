@@ -43,7 +43,7 @@ Open [http://localhost:3000](http://localhost:3000) to see your app.
 
 ## Documentation
 
-For a complete integration guide including both `ConnectButton` and `WalletButton` implementations, check out the [Base Account RainbowKit Setup Guide](https://github.com/base/demos/tree/master/base-account/base-account-rainbow-template/GUIDE.md).
+For a complete integration guide including both `ConnectButton` and `WalletButton` implementations, check out the [Base Account RainbowKit Setup Guide](GUIDE.mdx).
 
 ## Learn More
 
