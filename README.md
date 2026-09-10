@@ -10,7 +10,7 @@ A repository of demo applications that utilize Base and Coinbase Developer Platf
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/w/base/demos)](https://github.com/base/demos/graphs/contributors)
 [![GitHub Stars](https://img.shields.io/github/stars/base/demos.svg)](https://github.com/base/demos/stargazers)
 ![GitHub repo size](https://img.shields.io/github/repo-size/base/demos)
-[![GitHub](https://img.shields.io/github/license/base/demos?color=blue)](https://github.com/base/demos/blob/master/LICENSE.md)
+[![GitHub](https://img.shields.io/github/license/base/demos?color=blue)](https://github.com/base/demos/blob/master/LICENSE)
 
 <!-- Badge row 2 - links and profiles -->
 
