@@ -53,7 +53,7 @@ This repository contains example applications demonstrating various [Base] and [
 
 ## Requirements
 
-- Node.js (v16 or higher)
+- Node.js (v18 or higher)
 - npm or yarn
 - A Base-compatible wallet (like Coinbase Wallet)
 
