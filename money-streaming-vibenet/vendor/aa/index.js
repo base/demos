@@ -5235,7 +5235,7 @@ function hexToBytes2(hex) {
       const char = hex[hi] + hex[hi + 1];
       throw new Error('hex string expected, got non-hex character "' + char + '" at index ' + hi);
     }
-    array[ai] = n1 * 16 + n2;
+    array[ai] = n1 * 16 + n2; // lgtm[js/biased-cryptographic-random] -- Hex decoding, not random sampling.
   }
   return array;
 }
@@ -9664,7 +9664,7 @@ function createClient(parameters) {
     tokens,
     transport,
     type,
-    uid: uid(),
+    uid: uid(), // lgtm[js/insecure-randomness] -- Non-security client request identifier.
     ...experimental_blockTag ? { experimental_blockTag } : {}
   };
   function extend(base) {
@@ -18543,7 +18543,7 @@ function hashString(str, seed = 0) {
 
 // ../viem/src/_esm/clients/transports/createTransport.js
 function createTransport({ key, methods, name, request, retryCount = 3, retryDelay = 150, timeout, type }, value) {
-  const uid2 = uid();
+  const uid2 = uid(); // lgtm[js/insecure-randomness] -- Non-security transport request identifier.
   return {
     config: {
       key,
