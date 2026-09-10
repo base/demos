@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BasePayButton } from '@base-org/account-ui/react';
 import { pay } from '@base-org/account';
+import { retryOperation, isRetryableError } from '@/lib/retry';
 
 interface ProductInfo {
   asin: string;
@@ -44,6 +45,8 @@ export default function CheckoutPage() {
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderResult, setOrderResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [retryMessage, setRetryMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const asin = searchParams.get('asin');
@@ -67,116 +70,162 @@ export default function CheckoutPage() {
       return;
     }
 
-    try {
-      setLoading(true);
-      
-      console.log('Starting payment with product:', product);
-      console.log('Payment amount:', product.price.toString());
-      
-      const paymentConfig = {
-        amount: product.price.toString(),
-        to: '0x0B14a7aE11B1651aF832DBC282dD1E020E893c4d',
-        payerInfo: {
-          requests: [
-            { type: 'physicalAddress', required: true },
-            { type: 'email', required: false },
-            { type: 'phoneNumber', required: false },
-            { type: 'name', required: false }
-          ]
-        },
-        testnet: true
-      };
-      
-      console.log('Payment config:', paymentConfig);
-      
-      const payment = await pay(paymentConfig);
+    setLoading(true);
+    setRetryCount(0);
+    setRetryMessage(null);
+    
+    const paymentConfig = {
+      amount: product.price.toString(),
+      to: '0x0B14a7aE11B1651aF832DBC282dD1E020E893c4d',
+      payerInfo: {
+        requests: [
+          { type: 'physicalAddress', required: true },
+          { type: 'email', required: false },
+          { type: 'phoneNumber', required: false },
+          { type: 'name', required: false }
+        ]
+      },
+      testnet: true
+    };
 
-      console.log('Payment successful:', payment);
-      
-      // Extract user data from payment.payerInfoResponses
-      if (payment?.payerInfoResponses) {
-        const responses = payment.payerInfoResponses;
-        const userData = {
-          email: responses.email,
-          phone: responses.phoneNumber ? {
-            number: responses.phoneNumber.number,
-            countryCode: responses.phoneNumber.country
-          } : undefined,
-          address: responses.physicalAddress ? {
-            address1: responses.physicalAddress.address1,
-            address2: responses.physicalAddress.address2,
-            city: responses.physicalAddress.city,
-            state: responses.physicalAddress.state,
-            postalCode: responses.physicalAddress.postalCode,
-            country: responses.physicalAddress.countryCode,
-            name: {
-              firstName: responses.physicalAddress.name?.firstName || responses.name?.firstName,
-              familyName: responses.physicalAddress.name?.familyName || responses.name?.familyName
-            }
-          } : undefined,
-          name: responses.name ? {
-            firstName: responses.name.firstName,
-            lastName: responses.name.familyName
-          } : undefined
-        };
+    const retryResult = await retryOperation(
+      async () => {
+        console.log('Starting payment with product:', product);
+        console.log('Payment amount:', product.price.toString());
+        console.log('Payment config:', paymentConfig);
         
-        console.log('Extracted user data:', userData);
-        setUserData(userData);
-        setShowConfirmation(true);
-      } else {
-        console.log('No payerInfoResponses found in payment response');
+        const payment = await pay(paymentConfig);
+        console.log('Payment successful:', payment);
+        
+        // Extract user data from payment.payerInfoResponses
+        if (payment?.payerInfoResponses) {
+          const responses = payment.payerInfoResponses;
+          const userData = {
+            email: responses.email,
+            phone: responses.phoneNumber ? {
+              number: responses.phoneNumber.number,
+              countryCode: responses.phoneNumber.country
+            } : undefined,
+            address: responses.physicalAddress ? {
+              address1: responses.physicalAddress.address1,
+              address2: responses.physicalAddress.address2,
+              city: responses.physicalAddress.city,
+              state: responses.physicalAddress.state,
+              postalCode: responses.physicalAddress.postalCode,
+              country: responses.physicalAddress.countryCode,
+              name: {
+                firstName: responses.physicalAddress.name?.firstName || responses.name?.firstName || '',
+                familyName: responses.physicalAddress.name?.familyName || responses.name?.familyName || ''
+              }
+            } : undefined,
+            name: responses.name ? {
+              firstName: responses.name.firstName,
+              lastName: responses.name.familyName
+            } : undefined
+          };
+          
+          console.log('Extracted user data:', userData);
+          setUserData(userData);
+          setShowConfirmation(true);
+        } else {
+          console.log('No payerInfoResponses found in payment response');
+        }
+        
+        setPaymentComplete(true);
+        return payment;
+      },
+      {
+        maxAttempts: 3,
+        baseDelay: 2000,
+        maxDelay: 8000,
+        backoffMultiplier: 2
       }
-      
-      setPaymentComplete(true);
-      
-    } catch (error: any) {
+    );
+
+    if (retryResult.success) {
+      console.log(`Payment succeeded after ${retryResult.attempts} attempt(s)`);
+    } else {
+      const error = retryResult.error!;
       const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
-      console.error('Payment failed with error:', error);
+      
+      console.error('Payment failed after all retries:', error);
       console.error('Error type:', typeof error);
       console.error('Error keys:', error ? Object.keys(error) : 'No error object');
+      
+      // Check if error is retryable for user feedback
+      if (isRetryableError(error)) {
+        setRetryMessage(`Payment failed after ${retryResult.attempts} attempts. This appears to be a temporary issue. Please try again.`);
+      } else {
+        setRetryMessage(`Payment failed: ${errorMessage}`);
+      }
+      
       alert('Payment failed: ' + errorMessage);
-    } finally {
-      setLoading(false);
     }
+    
+    setLoading(false);
   };
 
   const handleConfirmPurchase = async () => {
     if (!product || !userData) return;
 
-    try {
-      setLoading(true);
-      
-      const response = await fetch('/api/crossmint-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          asin: product.asin,
-          price: product.price,
-          title: product.title,
-          userData: userData,
-          payerAddress: '0x0B14a7aE11B1651aF832DBC282dD1E020E893c4d'
-        }),
-      });
+    setLoading(true);
+    setRetryMessage(null);
 
-      if (!response.ok) {
-        throw new Error('Failed to create order');
+    const retryResult = await retryOperation(
+      async () => {
+        const response = await fetch('/api/crossmint-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            asin: product.asin,
+            price: product.price,
+            title: product.title,
+            userData: userData,
+            payerAddress: '0x0B14a7aE11B1651aF832DBC282dD1E020E893c4d'
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Order creation failed: ${errorData.error || 'Unknown error'}`);
+        }
+
+        const result = await response.json();
+        console.log('Order created:', result);
+        
+        setShowConfirmation(false);
+        setOrderComplete(true);
+        setOrderResult(result);
+        
+        return result;
+      },
+      {
+        maxAttempts: 3,
+        baseDelay: 1500,
+        maxDelay: 6000,
+        backoffMultiplier: 2
       }
+    );
 
-      const result = await response.json();
-      console.log('Order created:', result);
+    if (retryResult.success) {
+      console.log(`Order creation succeeded after ${retryResult.attempts} attempt(s)`);
+    } else {
+      const error = retryResult.error!;
+      console.error('Order creation failed after all retries:', error);
       
-      setShowConfirmation(false);
-      setOrderComplete(true);
-      setOrderResult(result);
+      // Check if error is retryable for user feedback
+      if (isRetryableError(error)) {
+        setRetryMessage(`Order creation failed after ${retryResult.attempts} attempts. This appears to be a temporary issue. Please try again.`);
+      } else {
+        setRetryMessage(`Order failed: ${error.message}`);
+      }
       
-    } catch (error: any) {
-      console.error('Order creation failed:', error);
       alert('Order failed: ' + error.message);
-    } finally {
-      setLoading(false);
     }
+    
+    setLoading(false);
   };
 
   if (orderComplete && orderResult) {
@@ -268,6 +317,21 @@ export default function CheckoutPage() {
               )}
             </div>
 
+            {retryMessage && (
+              <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-yellow-800">{retryMessage}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex space-x-4">
               <button
                 onClick={() => setShowConfirmation(false)}
@@ -315,12 +379,28 @@ export default function CheckoutPage() {
               </div>
 
               <div className="flex justify-center">
-                <BasePayButton
-                  colorScheme="light"
-                  onClick={handlePayment}
-                  disabled={loading}
-                />
+                <div className={loading ? 'opacity-50 pointer-events-none' : ''}>
+                  <BasePayButton
+                    colorScheme="light"
+                    onClick={handlePayment}
+                  />
+                </div>
               </div>
+              
+              {retryMessage && (
+                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-yellow-800">{retryMessage}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
