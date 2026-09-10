@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Discover and launch mini apps on Base - The premier platform for discovering trending apps, launching your project, and growing your community.">
+  <title>BaseLaunch - Discover & Launch on Base</title>
+  <style>
+    /* ============================================
+       CSS VARIABLES - DESIGN SYSTEM
+       ============================================ */
+    :root {
+      /* Base Colors */
+      --base-blue: #0052FF;
+      --base-blue-hover: #0040CC;
+      --farcaster-purple: #8A63D2;
+      --dark-bg: #0A0A14;
+      --dark-surface: #141420;
+      --dark-card: #1A1A2E;
+      --dark-border: #252539;
+      --text-primary: #FFFFFF;
+      --text-secondary: #B0B0C0;
+      --text-tertiary: #707080;
+      --green: #00D976;
+      --red: #FF3B30;
+      --orange: #FF9500;
+      --gold: #FFD700;
+      
+      /* Spacing */
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+      --spacing-xl: 32px;
+      --spacing-2xl: 48px;
+      
+      /* Typography */
+      --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-size-xs: 12px;
+      --font-size-sm: 14px;
+      --font-size-base: 16px;
+      --font-size-lg: 18px;
+      --font-size-xl: 24px;
+      --font-size-2xl: 28px;
+      --font-size-3xl: 32px;
+      --font-size-4xl: 40px;
+      
+      /* Easing */
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      
+      /* Transitions */
+      --transition-fast: 150ms var(--ease);
+      --transition-base: 200ms var(--ease);
+      --transition-slow: 300ms var(--ease);
+    }
+    
+    /* ============================================
+       RESET & BASE STYLES
+       ============================================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html {
+      scroll-behavior: smooth;
+    }
+    
+    body {
+      font-family: var(--font-family);
+      font-size: var(--font-size-base);
+      line-height: 1.6;
+      color: var(--text-primary);
+      background-color: var(--dark-bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+    
+    /* ============================================
+       TYPOGRAPHY
+       ============================================ */
+    h1, h2, h3, h4, h5, h6 {
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    
+    h1 { font-size: var(--font-size-4xl); }
+    h2 { font-size: var(--font-size-3xl); }
+    h3 { font-size: var(--font-size-2xl); }
+    h4 { font-size: var(--font-size-xl); }
+    
+    @media (max-width: 767px) {
+      h1 { font-size: var(--font-size-2xl); }
+      h2 { font-size: var(--font-size-xl); }
+      h3 { font-size: var(--font-size-lg); }
+    }
+    
+    /* ============================================
+       UTILITY CLASSES
+       ============================================ */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+    
+    /* ============================================
+       LAYOUT CONTAINERS
+       ============================================ */
+    .container {
+      width: 100%;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 var(--spacing-md);
+    }
+    
+    @media (min-width: 768px) {
+      .container {
+        padding: 0 var(--spacing-lg);
+      }
+    }
+    
+    /* ============================================
+       TOP NAVIGATION BAR
+       ============================================ */
+    .top-nav {
+      background-color: var(--dark-surface);
+      border-bottom: 1px solid var(--dark-border);
+      padding: var(--spacing-md) 0;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      backdrop-filter: blur(10px);
+    }
+    
+    .nav-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 var(--spacing-md);
+    }
+    
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-lg);
+    }
+    
+    .logo-section {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+    
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      fill: var(--base-blue);
+    }
+    
+    .logo-text {
+      font-size: var(--font-size-xl);
+      font-weight: 700;
+    }
+    
+    .tagline {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      margin-left: var(--spacing-xs);
+    }
+    
+    .nav-links {
+      display: flex;
+      gap: var(--spacing-md);
+      list-style: none;
+    }
+    
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-sm) var(--spacing-md);
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: 8px;
+      transition: all var(--transition-base);
+      font-size: var(--font-size-sm);
+    }
+    
+    .nav-link:hover {
+      color: var(--text-primary);
+      background-color: var(--dark-card);
+    }
+    
+    .nav-link.active {
+      background-color: var(--base-blue);
+      color: var(--text-primary);
+    }
+    
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+    }
+    
+    .icon-button {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all var(--transition-base);
+    }
+    
+    .icon-button:hover {
+      background-color: var(--dark-card);
+      color: var(--text-primary);
+    }
+    
+    .rank-badge {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-xs) var(--spacing-md);
+      background-color: var(--farcaster-purple);
+      border-radius: 20px;
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+    }
+    
+    .wallet-address {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-xs) var(--spacing-md);
+      background-color: var(--dark-card);
+      border-radius: 8px;
+      font-size: var(--font-size-sm);
+      font-family: monospace;
+    }
+    
+    .wallet-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--green);
+    }
+    
+    /* ============================================
+       HERO SECTION
+       ============================================ */
+    .hero-section {
+      padding: var(--spacing-2xl) 0;
+      text-align: center;
+    }
+    
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-xs) var(--spacing-md);
+      background-color: var(--base-blue);
+      border-radius: 20px;
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      margin-bottom: var(--spacing-lg);
+    }
+    
+    .hero-title {
+      font-size: var(--font-size-4xl);
+      font-weight: 700;
+      margin-bottom: var(--spacing-md);
+      line-height: 1.1;
+    }
+    
+    .hero-title .base-highlight {
+      color: var(--base-blue);
+    }
+    
+    .hero-subtitle {
+      font-size: var(--font-size-lg);
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto var(--spacing-xl);
+      line-height: 1.5;
+    }
+    
+    /* ============================================
+       SEARCH BAR
+       ============================================ */
+    .search-container {
+      max-width: 600px;
+      margin: 0 auto var(--spacing-xl);
+    }
+    
+    .search-bar {
+      position: relative;
+      width: 100%;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: var(--spacing-md) var(--spacing-xl) var(--spacing-md) var(--spacing-xl);
+      background-color: var(--dark-card);
+      border: 1px solid var(--dark-border);
+      border-radius: 12px;
+      color: var(--text-primary);
+      font-size: var(--font-size-base);
+      transition: all var(--transition-base);
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: var(--base-blue);
+      box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.1);
+    }
+    
+    .search-icon {
+      position: absolute;
+      left: var(--spacing-md);
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-tertiary);
+      pointer-events: none;
+    }
+    
+    .search-filter-btn {
+      position: absolute;
+      right: var(--spacing-md);
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      padding: var(--spacing-xs);
+    }
+    
+    /* ============================================
+       KEY METRICS
+       ============================================ */
+    .metrics-container {
+      display: flex;
+      justify-content: center;
+      gap: var(--spacing-lg);
+      margin-bottom: var(--spacing-xl);
+      flex-wrap: wrap;
+    }
+    
+    .metric-card {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-md);
+      background-color: var(--dark-card);
+      border-radius: 12px;
+      min-width: 200px;
+    }
+    
+    .metric-icon {
+      width: 24px;
+      height: 24px;
+      fill: var(--base-blue);
+    }
+    
+    .metric-content {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .metric-label {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+    }
+    
+    .metric-value {
+      font-size: var(--font-size-base);
+      font-weight: 600;
+    }
+    
+    /* ============================================
+       ACTION BUTTONS
+       ============================================ */
+    .action-buttons {
+      display: flex;
+      justify-content: center;
+      gap: var(--spacing-md);
+      margin-bottom: var(--spacing-xl);
+      flex-wrap: wrap;
+    }
+    
+    .action-btn {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-md) var(--spacing-lg);
+      background-color: var(--dark-card);
+      border: 1px solid var(--dark-border);
+      border-radius: 12px;
+      color: var(--text-primary);
+      text-decoration: none;
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      transition: all var(--transition-base);
+      cursor: pointer;
+    }
+    
+    .action-btn:hover {
+      background-color: var(--dark-border);
+      border-color: var(--base-blue);
+    }
+    
+    /* ============================================
+       CATEGORY FILTERS
+       ============================================ */
+    .category-filters {
+      display: flex;
+      gap: var(--spacing-sm);
+      overflow-x: auto;
+      padding: var(--spacing-md) 0;
+      margin-bottom: var(--spacing-xl);
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    
+    .category-filters::-webkit-scrollbar {
+      display: none;
+    }
+    
+    .category-btn {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-sm) var(--spacing-md);
+      background-color: var(--dark-card);
+      border: 1px solid var(--dark-border);
+      border-radius: 20px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      white-space: nowrap;
+      transition: all var(--transition-base);
+      cursor: pointer;
+      min-height: 44px;
+    }
+    
+    .category-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--base-blue);
+    }
+    
+    .category-btn.active {
+      background-color: var(--base-blue);
+      border-color: var(--base-blue);
+      color: var(--text-primary);
+    }
+    
+    /* ============================================
+       APP DISCOVERY FEED
+       ============================================ */
+    .apps-grid {
+      display: grid;
+      grid-template-columns: repeat(1, 1fr);
+      gap: var(--spacing-lg);
+      padding: var(--spacing-xl) 0;
+    }
+    
+    @media (min-width: 768px) {
+      .apps-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    
+    @media (min-width: 1024px) {
+      .apps-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+    
+    .app-card {
+      background-color: var(--dark-card);
+      border: 1px solid var(--dark-border);
+      border-radius: 16px;
+      padding: var(--spacing-lg);
+      transition: all var(--transition-base);
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeInUp 0.3s var(--ease) forwards;
+    }
+    
+    .app-card:hover {
+      transform: scale(1.02);
+      box-shadow: 0 8px 24px rgba(0, 82, 255, 0.2);
+      border-color: var(--base-blue);
+    }
+    
+    .app-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: var(--spacing-md);
+    }
+    
+    .app-logo {
+      font-size: 48px;
+      line-height: 1;
+      transition: transform var(--transition-base);
+    }
+    
+    .app-card:hover .app-logo {
+      transform: rotate(5deg);
+    }
+    
+    .app-badges {
+      display: flex;
+      gap: var(--spacing-xs);
+      flex-wrap: wrap;
+    }
+    
+    .badge-trending {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-xs) var(--spacing-sm);
+      background-color: var(--red);
+      border-radius: 12px;
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    .badge-category {
+      display: inline-flex;
+      align-items: center;
+      padding: var(--spacing-xs) var(--spacing-sm);
+      background-color: var(--dark-surface);
+      border-radius: 12px;
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+    
+    .app-name {
+      font-size: var(--font-size-base);
+      font-weight: 700;
+      margin-bottom: var(--spacing-sm);
+      color: var(--text-primary);
+    }
+    
+    .app-description {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: var(--spacing-md);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    
+    .app-metrics {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--spacing-md);
+      padding-top: var(--spacing-md);
+      border-top: 1px solid var(--dark-border);
+    }
+    
+    .app-users {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+    
+    .app-rating {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      color: var(--gold);
+    }
+    
+    .app-actions {
+      display: flex;
+      gap: var(--spacing-sm);
+    }
+    
+    .btn-try-app {
+      flex: 1;
+      padding: var(--spacing-md);
+      background-color: var(--base-blue);
+      border: none;
+      border-radius: 12px;
+      color: var(--text-primary);
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition-base);
+    }
+    
+    .btn-try-app:hover {
+      background-color: var(--base-blue-hover);
+      transform: translateY(-1px);
+    }
+    
+    .btn-save {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--dark-surface);
+      border: 1px solid var(--dark-border);
+      border-radius: 12px;
+      color: var(--text-secondary);
+      font-size: var(--font-size-lg);
+      cursor: pointer;
+      transition: all var(--transition-base);
+    }
+    
+    .btn-save:hover {
+      border-color: var(--base-blue);
+      color: var(--text-primary);
+    }
+    
+    .btn-save.saved {
+      color: var(--red);
+      border-color: var(--red);
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: var(--spacing-2xl);
+      color: var(--text-secondary);
+    }
+    
+    .result-count {
+      padding: var(--spacing-md) 0;
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+    }
+    
+    /* ============================================
+       ANIMATIONS
+       ============================================ */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+    
+    @keyframes shimmer {
+      0% {
+        background-position: -1000px 0;
+      }
+      100% {
+        background-position: 1000px 0;
+      }
+    }
+    
+    .loading-skeleton {
+      background: linear-gradient(
+        90deg,
+        var(--dark-card) 0%,
+        var(--dark-border) 50%,
+        var(--dark-card) 100%
+      );
+      background-size: 1000px 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 16px;
+      min-height: 200px;
+    }
+    
+    /* ============================================
+       AUTHENTICATION MODAL
+       ============================================ */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-base);
+    }
+    
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+    
+    .modal {
+      background-color: var(--dark-card);
+      border: 1px solid var(--dark-border);
+      border-radius: 20px;
+      padding: var(--spacing-xl);
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      transform: scale(0.95) translateY(20px);
+      transition: transform var(--transition-base);
+      position: relative;
+    }
+    
+    .modal-overlay.active .modal {
+      transform: scale(1) translateY(0);
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--spacing-lg);
+    }
+    
+    .modal-title {
+      font-size: var(--font-size-xl);
+      font-weight: 700;
+      margin: 0;
+    }
+    
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: var(--font-size-xl);
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all var(--transition-base);
+    }
+    
+    .modal-close:hover {
+      background-color: var(--dark-surface);
+      color: var(--text-primary);
+    }
+    
+    .modal-content {
+      margin-bottom: var(--spacing-lg);
+    }
+    
+    .modal-description {
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: var(--spacing-lg);
+    }
+    
+    .auth-options {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+    
+    .auth-option {
+      padding: var(--spacing-md);
+      background-color: var(--dark-surface);
+      border: 1px solid var(--dark-border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all var(--transition-base);
+    }
+    
+    .auth-option:hover {
+      border-color: var(--base-blue);
+      background-color: var(--dark-card);
+    }
+    
+    .auth-option-header {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      margin-bottom: var(--spacing-sm);
+    }
+    
+    .auth-option-icon {
+      font-size: var(--font-size-xl);
+    }
+    
+    .auth-option-title {
+      font-weight: 600;
+      margin: 0;
+    }
+    
+    .auth-option-description {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      margin: 0;
+    }
+    
+    .auth-button-primary {
+      width: 100%;
+      padding: var(--spacing-md);
+      background-color: var(--base-blue);
+      border: none;
+      border-radius: 12px;
+      color: var(--text-primary);
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition-base);
+      margin-top: var(--spacing-md);
+    }
+    
+    .auth-button-primary:hover {
+      background-color: var(--base-blue-hover);
+      transform: translateY(-1px);
+    }
+    
+    .auth-button-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .auth-button-secondary {
+      width: 100%;
+      padding: var(--spacing-md);
+      background-color: transparent;
+      border: 1px solid var(--dark-border);
+      border-radius: 12px;
+      color: var(--text-secondary);
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition-base);
+      margin-top: var(--spacing-sm);
+    }
+    
+    .auth-button-secondary:hover {
+      border-color: var(--base-blue);
+      color: var(--text-primary);
+    }
+    
+    .auth-error {
+      padding: var(--spacing-md);
+      background-color: rgba(255, 59, 48, 0.1);
+      border: 1px solid var(--red);
+      border-radius: 12px;
+      color: var(--red);
+      font-size: var(--font-size-sm);
+      margin-bottom: var(--spacing-md);
+      display: none;
+    }
+    
+    .auth-error.active {
+      display: block;
+    }
+    
+    .auth-loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--text-primary);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-right: var(--spacing-sm);
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Focus trap for modal */
+    .modal:focus {
+      outline: none;
+    }
+    
+    /* ============================================
+       RESPONSIVE DESIGN
+       ============================================ */
+    @media (max-width: 767px) {
+      .nav-links {
+        display: none;
+      }
+      
+      .nav-right {
+        gap: var(--spacing-sm);
+      }
+      
+      .tagline {
+        display: none;
+      }
+      
+      .hero-title {
+        font-size: var(--font-size-2xl);
+      }
+      
+      .metrics-container {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .metric-card {
+        min-width: auto;
+      }
+      
+      .app-card {
+        padding: var(--spacing-md);
+      }
+      
+      .app-logo {
+        font-size: 36px;
+      }
+    }
+    
+    /* ============================================
+       ACCESSIBILITY
+       ============================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+    
+    /* Focus styles */
+    *:focus-visible {
+      outline: 2px solid var(--base-blue);
+      outline-offset: 2px;
+    }
+    
+    button:focus-visible,
+    a:focus-visible {
+      outline: 2px solid var(--base-blue);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <nav class="top-nav" role="navigation" aria-label="Main navigation">
+    <div class="nav-container">
+      <div class="nav-left">
+        <a href="/" class="logo-section" aria-label="BaseLaunch Home">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="logo-text">BaseLaunch</span>
+          <span class="tagline">Built on Base</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/" class="nav-link active" aria-current="page">
+            <span>🏠</span> Home
+          </a></li>
+          <li><a href="#launch" class="nav-link" onclick="event.preventDefault(); handleCreateWaitlist();">
+            <span>🚀</span> Launch
+          </a></li>
+          <li><a href="#analytics" class="nav-link">
+            <span>📊</span> Analytics
+          </a></li>
+          <li><a href="#rankings" class="nav-link">
+            <span>🏆</span> Rankings
+          </a></li>
+          <li><a href="#dev-tools" class="nav-link">
+            <span>⬆️</span> Dev Tools
+          </a></li>
+          <li><a href="#profile" class="nav-link">
+            <span>👤</span> Profile
+          </a></li>
+        </ul>
+      </div>
+      <div class="nav-right">
+        <button class="icon-button" aria-label="Toggle dark mode">
+          <span>☀️</span>
+        </button>
+        <button class="icon-button" aria-label="Notifications">
+          <span>🔔</span>
+          <span class="sr-only">You have notifications</span>
+        </button>
+        <div class="rank-badge">
+          <span>🏆</span>
+          <span>Rank #42</span>
+        </div>
+        <div class="wallet-address">
+          <span class="wallet-dot" aria-hidden="true"></span>
+          <span>0x3bB4...4AE5</span>
+        </div>
+        <button class="icon-button" aria-label="Wallet menu">
+          <span>→</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero-section" aria-labelledby="hero-title">
+    <div class="container">
+      <div class="badge">
+        <span>🚀</span>
+        <span>50+ Base Apps Live</span>
+      </div>
+      <h1 id="hero-title" class="hero-title">
+        Discover & Launch on <span class="base-highlight">Base</span>
+      </h1>
+      <p class="hero-subtitle">
+        The premier platform for discovering trending apps, launching your project, and growing your community on Base.
+      </p>
+      
+      <!-- Search Bar -->
+      <div class="search-container">
+        <div class="search-bar">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input 
+            type="search" 
+            class="search-input" 
+            placeholder="Search apps, categories, or features..."
+            aria-label="Search apps, categories, or features"
+            id="search-input"
+          />
+          <button class="search-filter-btn" aria-label="Filter or sort results">
+            <span>⚙️</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Key Metrics -->
+      <div class="metrics-container" role="region" aria-label="Network metrics">
+        <div class="metric-card">
+          <svg class="metric-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <div class="metric-content">
+            <span class="metric-label">Block Height</span>
+            <span class="metric-value">22.0M <span style="color: var(--green);">●</span></span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <svg class="metric-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <div class="metric-content">
+            <span class="metric-label">Gas Price</span>
+            <span class="metric-value">0.0015 Gwei</span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <svg class="metric-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 8L12 2L6 8M6 16L12 22L18 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <div class="metric-content">
+            <span class="metric-label">24h Transactions</span>
+            <span class="metric-value">890.1K</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <a href="#weekly-digest" class="action-btn">
+          <span>✉️</span>
+          <span>Weekly Digest</span>
+        </a>
+        <a href="#analytics" class="action-btn">
+          <span>📊</span>
+          <span>Analytics</span>
+        </a>
+        <a href="#notifications" class="action-btn">
+          <span>🔔</span>
+          <span>Notifications</span>
+        </a>
+      </div>
+      
+      <!-- Category Filters -->
+      <div class="category-filters" role="tablist" aria-label="Filter apps by category">
+        <button class="category-btn active" role="tab" aria-selected="true" aria-controls="apps-all" data-category="all">
+          <span>✨</span>
+          <span>All</span>
+        </button>
+        <button class="category-btn" role="tab" aria-selected="false" aria-controls="apps-gaming" data-category="gaming">
+          <span>🎮</span>
+          <span>Gaming</span>
+        </button>
+        <button class="category-btn" role="tab" aria-selected="false" aria-controls="apps-defi" data-category="defi">
+          <span>💰</span>
+          <span>DeFi</span>
+        </button>
+        <button class="category-btn" role="tab" aria-selected="false" aria-controls="apps-social" data-category="social">
+          <span>🌐</span>
+          <span>Social</span>
+        </button>
+        <button class="category-btn" role="tab" aria-selected="false" aria-controls="apps-ai" data-category="ai">
+          <span>🤖</span>
+          <span>AI</span>
+        </button>
+        <button class="category-btn" role="tab" aria-selected="false" aria-controls="apps-creator" data-category="creator">
+          <span>🎨</span>
+          <span>Creator</span>
+        </button>
+        <button class="category-btn" role="tab" aria-selected="false" aria-controls="apps-utility" data-category="utility">
+          <span>🔧</span>
+          <span>Utility</span>
+        </button>
+        <button class="category-btn" role="tab" aria-selected="false" aria-controls="apps-nft" data-category="nft">
+          <span>🖼️</span>
+          <span>NFT</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- App Discovery Feed -->
+  <main id="app-feed" role="main" aria-label="App discovery feed">
+    <div class="container">
+      <div id="result-count" class="result-count" aria-live="polite"></div>
+      <div id="apps-grid" class="apps-grid" role="list"></div>
+      <div id="empty-state" class="empty-state" style="display: none;">
+        <p>No apps found matching your criteria.</p>
+        <p style="margin-top: var(--spacing-sm); font-size: var(--font-size-sm);">
+          Try adjusting your search or filters.
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Authentication Modal -->
+  <div id="auth-modal" class="modal-overlay" role="dialog" aria-labelledby="auth-modal-title" aria-modal="true" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="auth-modal-title" class="modal-title">Sign In Required</h2>
+        <button class="modal-close" onclick="closeAuthModal()" aria-label="Close authentication modal">×</button>
+      </div>
+      <div class="modal-content">
+        <p class="modal-description" id="auth-modal-description">
+          You need to sign in to perform this action. Choose how you'd like to connect:
+        </p>
+        <div id="auth-error" class="auth-error" role="alert"></div>
+        <div class="auth-options">
+          <div class="auth-option" onclick="selectAuthMethod('base')" role="button" tabindex="0" onkeydown="if(event.key==='Enter') selectAuthMethod('base')">
+            <div class="auth-option-header">
+              <span class="auth-option-icon">🚀</span>
+              <div>
+                <h3 class="auth-option-title">Base Account</h3>
+                <p class="auth-option-description">Recommended: Sign in with Base Account for seamless experience</p>
+              </div>
+            </div>
+          </div>
+          <div class="auth-option" onclick="selectAuthMethod('walletconnect')" role="button" tabindex="0" onkeydown="if(event.key==='Enter') selectAuthMethod('walletconnect')">
+            <div class="auth-option-header">
+              <span class="auth-option-icon">🔗</span>
+              <div>
+                <h3 class="auth-option-title">WalletConnect</h3>
+                <p class="auth-option-description">Connect with MetaMask, Coinbase Wallet, or other compatible wallets</p>
+              </div>
+            </div>
+          </div>
+          <div class="auth-option" onclick="selectAuthMethod('ledger')" role="button" tabindex="0" onkeydown="if(event.key==='Enter') selectAuthMethod('ledger')">
+            <div class="auth-option-header">
+              <span class="auth-option-icon">🔒</span>
+              <div>
+                <h3 class="auth-option-title">Ledger</h3>
+                <p class="auth-option-description">Connect using your Ledger hardware wallet</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button id="auth-connect-btn" class="auth-button-primary" onclick="connectWallet()" disabled>
+          <span id="auth-loading" class="auth-loading" style="display: none;"></span>
+          <span id="auth-button-text">Select a connection method</span>
+        </button>
+        <button class="auth-button-secondary" onclick="skipAuth()">
+          Continue without signing in (read-only mode)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================
+       STATE MANAGEMENT (JS Variables Only)
+       ============================================ */
+    const AppState = {
+      currentCategory: 'all',
+      searchQuery: '',
+      apps: [], // Will be populated with mock data
+      user: {
+        connected: false,
+        address: null,
+        rank: 42,
+        authMethod: null,
+        pendingAction: null // Stores the action that triggered auth (e.g., 'create-waitlist', 'share-farcaster')
+      },
+      filters: {
+        sort: 'trending',
+        view: 'grid'
+      },
+      savedApps: []
+    };
+
+    /* ============================================
+       MOCK DATA - 50 Apps
+       ============================================ */
+    function generateMockApps() {
+      const categories = ['gaming', 'defi', 'social', 'ai', 'creator', 'utility', 'nft'];
+      const apps = [];
+      
+      const appNames = [
+        'BaseQuest', 'DeFiMaster', 'SocialHub', 'AIPredict', 'CreatorStudio',
+        'UtilityPro', 'NFTMarket', 'GameFi', 'SwapZone', 'FriendChain',
+        'BotBuilder', 'DesignLab', 'ToolKit', 'ArtGallery', 'PlayEarn',
+        'TradeHub', 'ConnectApp', 'SmartBot', 'PixelArt', 'DevTools',
+        'RPGWorld', 'YieldFarm', 'ChatApp', 'MLModel', 'ContentHub',
+        'Analytics', 'MintPass', 'BattleGame', 'LendBorrow', 'SocialFeed',
+        'AIAssist', 'MusicHub', 'Workflow', 'Collectible', 'StrategyGame',
+        'Staking', 'Forum', 'GPTApp', 'VideoEdit', 'AdminPanel',
+        'ActionGame', 'DEX', 'Messenger', 'ImageGen', 'Blogging',
+        'TaskMgmt', 'RareNFT', 'CardGame', 'Vault', 'StatusApp'
+      ];
+      
+      for (let i = 0; i < 50; i++) {
+        const category = categories[i % categories.length];
+        const users = Math.floor(Math.random() * 50000) + 1000;
+        const rating = (Math.random() * 1.5 + 3.5).toFixed(1);
+        const isTrending = i < 5;
+        
+        apps.push({
+          id: i + 1,
+          name: appNames[i] || `App ${i + 1}`,
+          category: category,
+          description: `An amazing ${category} app built on Base that revolutionizes how users interact with blockchain technology.`,
+          users: users,
+          rating: parseFloat(rating),
+          trending: isTrending,
+          logo: getCategoryEmoji(category),
+          launchDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
+        });
+      }
+      
+      return apps;
+    }
+    
+    function getCategoryEmoji(category) {
+      const emojis = {
+        gaming: '🎮',
+        defi: '💰',
+        social: '🌐',
+        ai: '🤖',
+        creator: '🎨',
+        utility: '🔧',
+        nft: '🖼️'
+      };
+      return emojis[category] || '📱';
+    }
+
+    /* ============================================
+       INITIALIZATION
+       ============================================ */
+    function init() {
+      // Populate mock data
+      AppState.apps = generateMockApps();
+      
+      // Setup event listeners
+      setupEventListeners();
+      
+      // Initialize from URL params (if any)
+      initializeFromURL();
+      
+      // Initial render
+      filterApps();
+      
+      console.log('BaseLaunch initialized with', AppState.apps.length, 'apps');
+    }
+
+    /* ============================================
+       EVENT LISTENERS
+       ============================================ */
+    function setupEventListeners() {
+      // Search input
+      const searchInput = document.getElementById('search-input');
+      if (searchInput) {
+        let searchTimeout;
+        searchInput.addEventListener('input', (e) => {
+          clearTimeout(searchTimeout);
+          searchTimeout = setTimeout(() => {
+            AppState.searchQuery = e.target.value.toLowerCase();
+            filterApps();
+          }, 200); // 200ms debounce
+        });
+      }
+      
+      // Category filters
+      const categoryButtons = document.querySelectorAll('.category-btn');
+      categoryButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const category = btn.dataset.category;
+          setActiveCategory(category);
+        });
+      });
+      
+      // Keyboard navigation for category filters
+      categoryButtons.forEach(btn => {
+        btn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            const category = btn.dataset.category;
+            setActiveCategory(category);
+          }
+        });
+      });
+    }
+
+    function setActiveCategory(category) {
+      AppState.currentCategory = category;
+      
+      // Update UI
+      document.querySelectorAll('.category-btn').forEach(btn => {
+        const isActive = btn.dataset.category === category;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', isActive);
+      });
+      
+      // Filter apps
+      filterApps();
+      
+      // Update URL without reload
+      updateURL();
+    }
+
+    function filterApps() {
+      let filtered = AppState.apps;
+      
+      // Filter by category
+      if (AppState.currentCategory !== 'all') {
+        filtered = filtered.filter(app => app.category === AppState.currentCategory);
+      }
+      
+      // Filter by search query
+      if (AppState.searchQuery) {
+        const query = AppState.searchQuery.toLowerCase();
+        filtered = filtered.filter(app => 
+          app.name.toLowerCase().includes(query) ||
+          app.description.toLowerCase().includes(query) ||
+          app.category.toLowerCase().includes(query)
+        );
+      }
+      
+      // Render apps
+      renderApps(filtered);
+      
+      // Update result count
+      updateResultCount(filtered.length);
+      
+      // Update URL
+      updateURL();
+    }
+
+    function renderApps(apps) {
+      const grid = document.getElementById('apps-grid');
+      const emptyState = document.getElementById('empty-state');
+      
+      if (!grid) return;
+      
+      // Clear existing content
+      grid.innerHTML = '';
+      
+      if (apps.length === 0) {
+        grid.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+      }
+      
+      grid.style.display = 'grid';
+      emptyState.style.display = 'none';
+      
+      // Render each app card with stagger animation
+      apps.forEach((app, index) => {
+        const card = createAppCard(app);
+        card.style.animationDelay = `${index * 0.1}s`;
+        grid.appendChild(card);
+      });
+    }
+
+    function createAppCard(app) {
+      const card = document.createElement('article');
+      card.className = 'app-card';
+      card.setAttribute('role', 'listitem');
+      card.setAttribute('aria-label', `${app.name} - ${app.category} app`);
+      
+      const usersFormatted = app.users >= 1000 
+        ? `${(app.users / 1000).toFixed(1)}k`
+        : app.users.toString();
+      
+      const categoryName = app.category.charAt(0).toUpperCase() + app.category.slice(1);
+      
+      card.innerHTML = `
+        <div class="app-card-header">
+          <div class="app-logo" aria-hidden="true">${escapeHtml(app.logo)}</div>
+          <div class="app-badges">
+            ${app.trending ? '<span class="badge-trending">🔥 Trending</span>' : ''}
+            <span class="badge-category">${escapeHtml(categoryName)}</span>
+          </div>
+        </div>
+        <h3 class="app-name">${escapeHtml(app.name)}</h3>
+        <p class="app-description">${escapeHtml(app.description)}</p>
+        <div class="app-metrics">
+          <span class="app-users">${usersFormatted} users</span>
+          <span class="app-rating">
+            <span>⭐</span>
+            <span>${app.rating.toFixed(1)}/5</span>
+          </span>
+        </div>
+        <div class="app-actions">
+          <button class="btn-try-app" onclick="handleTryApp(${app.id})" aria-label="Try ${escapeHtml(app.name)}">
+            Try App
+          </button>
+          <button class="btn-save" onclick="handleSaveApp(${app.id})" aria-label="Save ${escapeHtml(app.name)} for later">
+            ❤️
+          </button>
+        </div>
+      `;
+      
+      // Make entire card clickable
+      card.addEventListener('click', (e) => {
+        if (!e.target.closest('.app-actions')) {
+          handleAppClick(app.id);
+        }
+      });
+      
+      return card;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function updateResultCount(count) {
+      const resultCount = document.getElementById('result-count');
+      if (resultCount) {
+        if (count === 0) {
+          resultCount.textContent = '';
+        } else {
+          resultCount.textContent = `${count} ${count === 1 ? 'app' : 'apps'} found`;
+        }
+      }
+    }
+
+    // Read-only action - NO auth required initially
+    // Wallet may be needed when actually launching mini app, but browsing/clicking doesn't require auth
+    function handleTryApp(appId) {
+      const app = AppState.apps.find(a => a.id === appId);
+      if (app) {
+        console.log('Try app:', app.name);
+        // TODO: Implement app launch functionality
+        // Note: Opening mini app may require wallet connection at that point,
+        // but clicking "Try App" button doesn't require auth upfront
+        alert(`Launching ${app.name}... (To be implemented)`);
+      }
+    }
+
+    // Read-only action - NO auth required
+    function handleSaveApp(appId) {
+      // Saving apps for later is allowed without authentication
+      // This works in read-only mode (stored in JS variables only)
+      if (!AppState.savedApps) {
+        AppState.savedApps = [];
+      }
+      
+      const index = AppState.savedApps.indexOf(appId);
+      const button = event.target.closest('.btn-save');
+      
+      if (index > -1) {
+        AppState.savedApps.splice(index, 1);
+        button.classList.remove('saved');
+        button.setAttribute('aria-label', button.getAttribute('aria-label').replace('Remove', 'Save'));
+      } else {
+        AppState.savedApps.push(appId);
+        button.classList.add('saved');
+        button.setAttribute('aria-label', button.getAttribute('aria-label').replace('Save', 'Remove'));
+      }
+    }
+
+    function handleAppClick(appId) {
+      const app = AppState.apps.find(a => a.id === appId);
+      if (app) {
+        console.log('View app details:', app.name);
+        // TODO: Implement app detail modal
+      }
+    }
+
+    function initializeFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const category = params.get('category');
+      const search = params.get('search');
+      
+      if (category) {
+        setActiveCategory(category);
+      }
+      
+      if (search) {
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+          searchInput.value = search;
+          AppState.searchQuery = search.toLowerCase();
+        }
+      }
+    }
+
+    function updateURL() {
+      const params = new URLSearchParams();
+      if (AppState.currentCategory !== 'all') {
+        params.set('category', AppState.currentCategory);
+      }
+      if (AppState.searchQuery) {
+        params.set('search', AppState.searchQuery);
+      }
+      
+      const newURL = params.toString() 
+        ? `${window.location.pathname}?${params.toString()}`
+        : window.location.pathname;
+      
+      window.history.replaceState({}, '', newURL);
+    }
+
+    /* ============================================
+       PROGRESSIVE AUTHENTICATION SYSTEM
+       ============================================ */
+    
+    let selectedAuthMethod = null;
+    
+    // Open auth modal for protected actions
+    function requireAuth(actionType, actionDescription) {
+      // If already connected, allow action
+      if (AppState.user.connected) {
+        return true;
+      }
+      
+      // Store pending action
+      AppState.user.pendingAction = {
+        type: actionType,
+        description: actionDescription
+      };
+      
+      // Update modal description based on action
+      const modalDescription = document.getElementById('auth-modal-description');
+      if (modalDescription) {
+        modalDescription.textContent = `${actionDescription} requires signing in. Choose how you'd like to connect:`;
+      }
+      
+      // Open modal
+      openAuthModal();
+      return false;
+    }
+    
+    function openAuthModal() {
+      const modal = document.getElementById('auth-modal');
+      if (modal) {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        
+        // Focus trap
+        const firstFocusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (firstFocusable) {
+          firstFocusable.focus();
+        }
+        
+        // Close on Escape key
+        const handleEscape = (e) => {
+          if (e.key === 'Escape') {
+            closeAuthModal();
+            document.removeEventListener('keydown', handleEscape);
+          }
+        };
+        document.addEventListener('keydown', handleEscape);
+      }
+    }
+    
+    function closeAuthModal() {
+      const modal = document.getElementById('auth-modal');
+      if (modal) {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        selectedAuthMethod = null;
+        updateAuthButton();
+        
+        // Clear error
+        const errorEl = document.getElementById('auth-error');
+        if (errorEl) {
+          errorEl.classList.remove('active');
+          errorEl.textContent = '';
+        }
+      }
+    }
+    
+    function selectAuthMethod(method) {
+      selectedAuthMethod = method;
+      updateAuthButton();
+      
+      // Highlight selected option
+      document.querySelectorAll('.auth-option').forEach(opt => {
+        opt.style.borderColor = '';
+      });
+      event.currentTarget.style.borderColor = 'var(--base-blue)';
+    }
+    
+    function updateAuthButton() {
+      const btn = document.getElementById('auth-connect-btn');
+      const btnText = document.getElementById('auth-button-text');
+      
+      if (btn && btnText) {
+        if (selectedAuthMethod) {
+          btn.disabled = false;
+          const methodNames = {
+            base: 'Base Account',
+            walletconnect: 'WalletConnect',
+            ledger: 'Ledger'
+          };
+          btnText.textContent = `Connect with ${methodNames[selectedAuthMethod] || selectedAuthMethod}`;
+        } else {
+          btn.disabled = true;
+          btnText.textContent = 'Select a connection method';
+        }
+      }
+    }
+    
+    async function connectWallet() {
+      if (!selectedAuthMethod) {
+        return;
+      }
+      
+      const loadingEl = document.getElementById('auth-loading');
+      const btn = document.getElementById('auth-connect-btn');
+      const errorEl = document.getElementById('auth-error');
+      
+      if (loadingEl) loadingEl.style.display = 'inline-block';
+      if (btn) btn.disabled = true;
+      if (errorEl) {
+        errorEl.classList.remove('active');
+        errorEl.textContent = '';
+      }
+      
+      try {
+        // TODO: Integrate Base Account SDK here
+        // For now, simulate connection
+        await simulateWalletConnection(selectedAuthMethod);
+        
+        // Connection successful
+        AppState.user.connected = true;
+        AppState.user.authMethod = selectedAuthMethod;
+        AppState.user.address = '0x3bB4b52253383A088beE7806133526D7eFFe4AE5'; // Mock address
+        
+        // Update UI
+        updateWalletDisplay();
+        
+        // Close modal
+        closeAuthModal();
+        
+        // Execute pending action if any
+        if (AppState.user.pendingAction) {
+          executePendingAction();
+        }
+        
+        console.log('Wallet connected:', selectedAuthMethod);
+      } catch (error) {
+        console.error('Connection failed:', error);
+        if (errorEl) {
+          errorEl.textContent = error.message || 'Connection failed. Please try again.';
+          errorEl.classList.add('active');
+        }
+      } finally {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (btn) btn.disabled = false;
+      }
+    }
+    
+    // Simulate wallet connection (replace with real SDK integration)
+    function simulateWalletConnection(method) {
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          // Simulate connection delay
+          if (Math.random() > 0.1) { // 90% success rate
+            resolve();
+          } else {
+            reject(new Error('Connection cancelled or failed'));
+          }
+        }, 1500);
+      });
+      
+      /* REAL INTEGRATION WOULD LOOK LIKE:
+      
+      // For Base Account SDK:
+      const sdk = createBaseAccountSDK({
+        appName: "BaseLaunch",
+      });
+      
+      const provider = sdk.getProvider();
+      
+      // Get nonce from backend
+      const nonceResponse = await fetch('/api/auth/nonce');
+      const { nonce } = await nonceResponse.json();
+      
+      // Connect with SIWE
+      const connectResponse = await provider.request({
+        method: "wallet_connect",
+        params: [{
+          version: "1",
+          capabilities: {
+            signInWithEthereum: {
+              chainId: "0x2105", // Base Mainnet
+              nonce: nonce,
+            },
+          },
+        }],
+      });
+      
+      const address = connectResponse.accounts[0].address;
+      const signature = connectResponse.accounts[0].capabilities.signInWithEthereum.signature;
+      const message = connectResponse.accounts[0].capabilities.signInWithEthereum.message;
+      
+      // Verify signature on backend
+      const verifyResponse = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, message, signature }),
+      });
+      
+      const { success } = await verifyResponse.json();
+      if (success) {
+        resolve(address);
+      } else {
+        reject(new Error('Signature verification failed'));
+      }
+      */
+    }
+    
+    function skipAuth() {
+      closeAuthModal();
+      
+      // Allow action to proceed in read-only mode
+      if (AppState.user.pendingAction) {
+        const action = AppState.user.pendingAction;
+        console.log('Action skipped (read-only mode):', action.type);
+        
+        // Show message that action requires auth
+        alert(`${action.description} requires signing in. Continuing in read-only mode.`);
+        
+        AppState.user.pendingAction = null;
+      }
+    }
+    
+    function executePendingAction() {
+      if (!AppState.user.pendingAction) return;
+      
+      const action = AppState.user.pendingAction;
+      
+      switch (action.type) {
+        case 'create-waitlist':
+          // Redirect to launch dashboard or open waitlist creation
+          console.log('Executing: Create waitlist');
+          // window.location.href = '#launch';
+          break;
+        case 'share-farcaster':
+          // Open share modal
+          console.log('Executing: Share to Farcaster');
+          // openShareModal();
+          break;
+        default:
+          console.log('Executing pending action:', action.type);
+      }
+      
+      // Clear pending action
+      AppState.user.pendingAction = null;
+    }
+    
+    function updateWalletDisplay() {
+      // Update wallet address in navigation if connected
+      const walletEl = document.querySelector('.wallet-address span');
+      if (walletEl && AppState.user.address) {
+        const truncated = `${AppState.user.address.slice(0, 6)}...${AppState.user.address.slice(-4)}`;
+        walletEl.textContent = truncated;
+      }
+    }
+    
+    // Protected action wrappers
+    function handleCreateWaitlist() {
+      if (!requireAuth('create-waitlist', 'Creating a waitlist')) {
+        return;
+      }
+      
+      // Proceed with waitlist creation
+      console.log('Creating waitlist...');
+      // window.location.href = '#launch';
+    }
+    
+    function handleShareToFarcaster() {
+      if (!requireAuth('share-farcaster', 'Sharing to Farcaster')) {
+        return;
+      }
+      
+      // Proceed with Farcaster share
+      console.log('Opening Farcaster share modal...');
+      // openShareModal();
+    }
+    
+    // Close modal when clicking overlay
+    document.addEventListener('click', (e) => {
+      const modal = document.getElementById('auth-modal');
+      if (e.target === modal) {
+        closeAuthModal();
+      }
+    });
+
+    // Initialize on DOM load
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  </script>
+</body>
+</html>
