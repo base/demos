@@ -1,0 +1,159 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0a0a0f;
+  color: #ffffff;
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+header {
+  text-align: center;
+  padding: 20px 0;
+  border-bottom: 1px solid #1e1e2e;
+  margin-bottom: 20px;
+}
+
+h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  background: linear-gradient(135deg, #0052ff, #00d4ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 16px;
+}
+
+#connect-btn {
+  background: #0052ff;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#connect-btn:disabled {
+  background: #333;
+  cursor: not-allowed;
+}
+
+#wallet-address {
+  font-size: 12px;
+  color: #888;
+  display: block;
+  margin-top: 8px;
+}
+
+#balance-info {
+  font-size: 14px;
+  color: #00d4ff;
+  margin-top: 6px;
+}
+
+.status {
+  text-align: center;
+  padding: 8px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  min-height: 20px;
+}
+
+.status.success { background: #0d2d1a; color: #00c853; }
+.status.error { background: #2d0d0d; color: #ff5252; }
+
+.title-card {
+  background: #12121f;
+  border: 1px solid #1e1e2e;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.title-name {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #fff;
+}
+
+.vote-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.vote-btn {
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: opacity 0.2s;
+}
+
+.vote-btn.book {
+  background: #1a3a5c;
+  color: #4fc3f7;
+}
+
+.vote-btn.film {
+  background: #3a1a5c;
+  color: #ce93d8;
+}
+
+.vote-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vote-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.stat {
+  text-align: center;
+  padding: 6px;
+  background: #0a0a0f;
+  border-radius: 6px;
+}
+
+.stat span {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.voted-badge {
+  text-align: center;
+  font-size: 11px;
+  color: #555;
+  margin-top: 6px;
+}
