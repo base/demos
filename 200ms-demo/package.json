@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:pages": "tsc --noEmit && vite build --mode pages",
     "preview": "vite preview",
     "spike": "node scripts/spike.mjs",
     "soak": "SPIKE_TRANSFERS=1500 SPIKE_AUTO_TOPUP=1 node scripts/spike.mjs",
