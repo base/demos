@@ -299,7 +299,7 @@ async function main() {
     throw new Error('SPIKE_TRANSFERS must be a positive integer')
   }
 
-  console.log('200ms Vibenet Phase 1 spike')
+  console.log('200ms demo Phase 1 spike')
   console.log('====================================')
 
   const [health, contracts, faucetStatus, chainIdHex, genesis] = await Promise.all([
@@ -462,7 +462,7 @@ async function main() {
         chainId: CHAIN_ID,
         accountChanges: [],
         calls: encodeWalletCalls({ account: account.address, calls: phases(TRANSFER_AMOUNT) }),
-        metadata: toHex(`200ms-vibenet-spike:${index}:${Date.now()}`),
+        metadata: toHex(`200ms-demo-spike:${index}:${Date.now()}`),
         nonceKey: nonceKeyMax,
         validBefore: BigInt(Date.now() + 15_000 + index),
         maxFeePerGas: fees.maxFeePerGas,

@@ -1,4 +1,4 @@
-# 200ms Vibenet
+# 200ms demo
 
 A single-page React app that streams Vibenet USDV through real EIP-8130 native
 account-abstraction transactions at approximately five transfers per second.

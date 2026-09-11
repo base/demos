@@ -246,7 +246,7 @@ export async function bootstrap(
   options: { forceRotate?: boolean } = {},
 ): Promise<StreamRuntime> {
   if (navigator.locks?.request) {
-    return navigator.locks.request('base-200ms-vibenet-bootstrap', () => runBootstrap(onProgress, Boolean(options.forceRotate)))
+    return navigator.locks.request('base-200ms-demo-bootstrap', () => runBootstrap(onProgress, Boolean(options.forceRotate)))
   }
   return runBootstrap(onProgress, Boolean(options.forceRotate))
 }

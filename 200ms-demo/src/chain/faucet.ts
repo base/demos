@@ -3,7 +3,7 @@ import type { Address, Hex } from '@vibenet/aa'
 import { MIN_ETH_BOOTSTRAP, USDV_TOP_UP_THRESHOLD, type FaucetStatus } from './config'
 import { postFaucet, readEthBalance, readTokenBalance } from './rpc'
 
-const LAST_DRIP_KEY = 'base.200ms-vibenet.faucet.last.v1'
+const LAST_DRIP_KEY = 'base.200ms-demo.faucet.last.v1'
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 export type FaucetEvent = {

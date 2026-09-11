@@ -43,7 +43,12 @@ button { -webkit-tap-highlight-color: transparent; }
   padding: 0 24px;
 }
 
-.base-logo { width: 72px; height: auto; display: block; }
+.demo-name {
+  color: var(--black);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.025em;
+}
 .network-readout {
   display: flex;
   align-items: center;
@@ -191,7 +196,7 @@ footer { border-top: 1px solid var(--gray-15); display: grid; place-items: cente
 @media (max-width: 760px) {
   .app-shell { min-height: 600px; grid-template-rows: 44px minmax(0, 1fr) 24px; }
   .site-header { padding: 0 14px; }
-  .base-logo { width: 60px; }
+  .demo-name { font-size: 14px; }
   .network-readout { gap: 8px; font-size: 8px; }
   .network-readout > span + span::before { margin-right: 8px; }
   .network-readout span:nth-child(2) { display: none; }

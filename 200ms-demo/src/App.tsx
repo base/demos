@@ -27,7 +27,7 @@ function Header({ phase }: { phase?: string }) {
   const live = head !== null
   return (
     <header className="site-header">
-      <img src={`${import.meta.env.BASE_URL}base-lockup.svg`} alt="Base" className="base-logo" />
+      <div className="demo-name">200ms demo</div>
       <div className="network-readout">
         <span>Vibenet</span>
         <span>block {head?.toLocaleString() ?? '—'}</span>
