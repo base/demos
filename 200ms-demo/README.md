@@ -70,8 +70,8 @@ The five-minute funding/throughput soak is available as `npm run soak`.
 - `src/chain/bootstrap.ts` — health, live contracts, persisted account,
   cooldown-aware funding, deployment proof, and one-time gas calibration.
 - `src/chain/streamer.ts` — exact rational accumulator, 200ms scheduler,
-  nonce-free signing, pending backpressure, receipt watcher, rebroadcast,
-  funding daemon, and reset detection.
+  nonce-free signing, WebSocket inclusion feed, low-rate balance reconciliation,
+  fallback receipt checks, rebroadcast, funding daemon, and reset detection.
 - `src/hooks/useStream.ts` — requestAnimationFrame sampling over the mutable
   streamer snapshot.
 - `src/ui/` — counter, real balance cards, rate selector, and explorer-linked

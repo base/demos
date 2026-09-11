@@ -22,8 +22,14 @@ const progressLabels: Record<BootstrapProgress['stage'], string> = {
   ready: 'Ready',
 }
 
-function Header({ phase }: { phase?: string }) {
-  const { head, cadenceMs } = useChainHead()
+function Header({ phase, streamHead, streamCadenceMs }: {
+  phase?: string
+  streamHead?: number
+  streamCadenceMs?: number | null
+}) {
+  const observed = useChainHead(streamHead === undefined)
+  const head = streamHead ?? observed.head
+  const cadenceMs = streamCadenceMs ?? observed.cadenceMs
   const live = head !== null
   return (
     <header className="site-header">
@@ -164,7 +170,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Header phase={snapshot.phase} />
+      <Header phase={snapshot.phase} streamHead={snapshot.head} streamCadenceMs={snapshot.cadenceMs} />
       <main className="stream-layout">
         <section className="hero-section">
           <StreamCounter

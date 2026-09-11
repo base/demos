@@ -215,8 +215,7 @@ footer { border-top: 1px solid var(--gray-15); display: grid; place-items: cente
   .rate-options { gap: 4px; }
   .rate-button, .stream-button { min-height: 36px; font-size: 9px; }
   .status-note { display: none; }
-  .ticker-head, .ticker-row { grid-template-columns: 1.2fr .8fr .8fr .55fr; }
-  .ticker-head span:last-child, .ticker-row span:last-child { display: none; }
+  .ticker-head, .ticker-row { grid-template-columns: 1.2fr .8fr .8fr .55fr .55fr; }
   .ticker-row { font-size: 8px; min-height: 25px; }
   footer { font-size: 7px; text-align: center; padding: 0 8px; }
 }

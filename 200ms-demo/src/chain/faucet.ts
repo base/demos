@@ -1,7 +1,7 @@
 import type { Address, Hex } from '@vibenet/aa'
 
 import { MIN_ETH_BOOTSTRAP, USDV_TOP_UP_THRESHOLD, type FaucetStatus } from './config'
-import { postFaucet, readEthBalance, readTokenBalance } from './rpc'
+import { postFaucet, readEthBalance, readTokenBalance, type RpcRequester } from './rpc'
 
 const LAST_DRIP_KEY = 'base.200ms-demo.faucet.last.v1'
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -14,6 +14,7 @@ export type FaucetEvent = {
 export class FaucetQueue {
   private tail = Promise.resolve()
   private nextAllowedAt = 0
+  private requester: RpcRequester | undefined
 
   constructor(
     readonly status: FaucetStatus,
@@ -28,12 +29,16 @@ export class FaucetQueue {
     }
   }
 
+  setRequester(requester: RpcRequester | undefined) {
+    this.requester = requester
+  }
+
   ensureEth(address: Address, minimum = MIN_ETH_BOOTSTRAP): Promise<Hex | null> {
     return this.enqueue(async () => {
-      const before = await readEthBalance(address)
+      const before = await readEthBalance(address, 'latest', this.requester)
       if (before >= minimum) return null
       const response = await this.drip('/drip', address)
-      await this.waitForIncrease(() => readEthBalance(address), before, 'ETH faucet balance')
+      await this.waitForIncrease(() => readEthBalance(address, 'latest', this.requester), before, 'ETH faucet balance')
       this.onEvent?.({ kind: 'eth', hash: response.tx_hash })
       return response.tx_hash
     })
@@ -41,10 +46,10 @@ export class FaucetQueue {
 
   ensureUsdv(address: Address, minimum = USDV_TOP_UP_THRESHOLD): Promise<Hex | null> {
     return this.enqueue(async () => {
-      const before = await readTokenBalance(this.token, address)
+      const before = await readTokenBalance(this.token, address, 'latest', this.requester)
       if (before >= minimum) return null
       const response = await this.drip('/drip-usdv', address)
-      await this.waitForIncrease(() => readTokenBalance(this.token, address), before, 'USDV faucet balance')
+      await this.waitForIncrease(() => readTokenBalance(this.token, address, 'latest', this.requester), before, 'USDV faucet balance')
       this.onEvent?.({ kind: 'usdv', hash: response.tx_hash })
       return response.tx_hash
     })

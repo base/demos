@@ -14,13 +14,14 @@ import {
   erc20Abi,
   ETH_TOP_UP_THRESHOLD,
   FUNDING_POLL_MS,
+  FALLBACK_RECEIPT_POLL_MS,
   MAX_PENDING,
   MAX_TICKER_ROWS,
   NONCE_FREE_VALIDITY_MS,
   PENDING_UNKNOWN_MS,
   TICK_MS,
+  STATE_POLL_MS,
   USDV_TOP_UP_THRESHOLD,
-  WATCH_MS,
   type StreamRate,
 } from './config'
 import type { StreamRuntime } from './bootstrap'
@@ -30,11 +31,14 @@ import {
   isRecoverableBroadcastError,
   readCode,
   readFreshBalances,
+  readGenesisHash,
   readLatestBlock,
   readReceipt,
   readTransaction,
   sendRaw,
 } from './rpc'
+import type { TransferLog } from './subscriptions'
+import { openStreamSocket, type StreamSocket } from './streamSocket'
 
 export type StreamPhase = 'idle' | 'streaming' | 'paused' | 'stopping' | 'stopped' | 'error'
 export type TransactionStatus = 'pending' | 'confirmed' | 'reverted' | 'unknown'
@@ -43,8 +47,10 @@ export type StreamTransaction = {
   hash: Hex
   amount: bigint
   status: TransactionStatus
-  sentAt: number
+  /** Monotonic timestamp captured after the RPC acknowledges the transaction. */
+  acceptedAt: number
   blockNumber?: number
+  /** Client-observed time from RPC acknowledgement to block/receipt observation. */
   latencyMs?: number
   message?: string
 }
@@ -102,10 +108,12 @@ export class MoneyStreamer {
   private sending = false
   private destroyed = false
   private watcherRunning = false
+  private transferFeedLive = false
+  private readonly streamSocket: StreamSocket
   private fundingRunning = false
   private receiptConfirmedUnits = 0n
   private lastHeadSeenAt = performance.now()
-  private lastIntegrityCheckAt = 0
+  private lastStateSyncAt = -Infinity
   private transactionOrdinal = 0
   private readonly sessionId = crypto.randomUUID()
 
@@ -134,6 +142,19 @@ export class MoneyStreamer {
       errorCode: null,
     }
     document.addEventListener('visibilitychange', this.handleVisibility)
+    this.streamSocket = openStreamSocket({
+      token: runtime.token,
+      sender: runtime.identity.account.address,
+      recipient: runtime.identity.recipient,
+      onLog: this.handleTransferLog,
+      onHead: this.handleHead,
+      onState: (state) => {
+        const wasLive = this.transferFeedLive
+        this.transferFeedLive = state === 'live'
+        if (wasLive && !this.transferFeedLive) this.scheduleWatcher(0)
+      },
+    })
+    runtime.faucet.setRequester(this.streamSocket)
     this.scheduleWatcher(0)
     this.scheduleFunding(FUNDING_POLL_MS)
   }
@@ -202,6 +223,7 @@ export class MoneyStreamer {
     if (this.watchTimer !== null) window.clearTimeout(this.watchTimer)
     if (this.fundingTimer !== null) window.clearTimeout(this.fundingTimer)
     this.lease.release()
+    this.streamSocket.close()
     document.removeEventListener('visibilitychange', this.handleVisibility)
     this.listeners.clear()
   }
@@ -288,15 +310,15 @@ export class MoneyStreamer {
       })
       const hash = keccak256(raw)
       const acceptedHash = await this.broadcast(raw, hash)
-      const sentAt = Date.now()
+      const acceptedAt = performance.now()
       const transaction: PendingTransaction = {
         hash: acceptedHash,
         raw,
         amount,
         status: 'pending',
-        sentAt,
+        acceptedAt,
         validBefore,
-        lastBroadcastAt: performance.now(),
+        lastBroadcastAt: acceptedAt,
       }
       this.pending.set(hash.toLowerCase(), transaction)
       this.patch({
@@ -314,11 +336,20 @@ export class MoneyStreamer {
     }
   }
 
+  private async submitRaw(raw: Hex): Promise<Hex> {
+    try {
+      return await this.streamSocket.sendRaw(raw)
+    } catch {
+      return sendRaw(raw)
+    }
+  }
+
+
   private async broadcast(raw: Hex, expectedHash: Hex): Promise<Hex> {
     let lastError: unknown
     for (let attempt = 0; attempt < 4; attempt += 1) {
       try {
-        const returnedHash = await sendRaw(raw)
+        const returnedHash = await this.submitRaw(raw)
         if (returnedHash.toLowerCase() !== expectedHash.toLowerCase()) {
           throw new Error(`RPC returned an unexpected transaction hash`)
         }
@@ -326,8 +357,8 @@ export class MoneyStreamer {
       } catch (error) {
         lastError = error
         const [transaction, receipt] = await Promise.all([
-          readTransaction(expectedHash).catch(() => null),
-          readReceipt(expectedHash),
+          readTransaction(expectedHash, this.streamSocket).catch(() => null),
+          readReceipt(expectedHash, this.streamSocket).catch(() => null),
         ])
         if (transaction || receipt) return expectedHash
         if (!isRecoverableBroadcastError(error) && attempt >= 1) throw error
@@ -337,7 +368,7 @@ export class MoneyStreamer {
     throw lastError instanceof Error ? lastError : new Error('Transaction broadcast failed')
   }
 
-  private scheduleWatcher(delay = WATCH_MS) {
+  private scheduleWatcher(delay = this.transferFeedLive ? STATE_POLL_MS : FALLBACK_RECEIPT_POLL_MS) {
     if (this.destroyed) return
     if (this.watchTimer !== null) window.clearTimeout(this.watchTimer)
     this.watchTimer = window.setTimeout(() => void this.watch(), delay)
@@ -347,60 +378,19 @@ export class MoneyStreamer {
     if (this.watcherRunning || this.destroyed) return this.scheduleWatcher()
     this.watcherRunning = true
     try {
-      const balances = await readFreshBalances(
-        this.runtime.token,
-        this.runtime.identity.account.address,
-        this.runtime.identity.recipient,
-      )
-      if (balances.blockNumber + 5 < this.snapshot.head) {
-        this.fail('Vibenet reset detected — creating a new stream account.', 'NETWORK_RESET')
-        return
-      }
-      if (balances.blockNumber > this.snapshot.head) {
-        const now = performance.now()
-        const blockDelta = balances.blockNumber - this.snapshot.head
-        const cadence = blockDelta > 0 ? (now - this.lastHeadSeenAt) / blockDelta : this.snapshot.cadenceMs
-        this.lastHeadSeenAt = now
-        this.snapshot = { ...this.snapshot, head: balances.blockNumber, cadenceMs: cadence }
-      }
-
-      const balanceConfirmedUnits = balances.recipientToken > this.runtime.recipientBaseline
-        ? balances.recipientToken - this.runtime.recipientBaseline
-        : 0n
-      if (balances.recipientToken < this.snapshot.recipientTokenBalance && this.snapshot.confirmedUnits > 0n) {
-        this.fail('Recipient balance rolled back — Vibenet reset detected.', 'NETWORK_RESET')
-        return
-      }
-      this.snapshot = {
-        ...this.snapshot,
-        confirmedUnits: balanceConfirmedUnits > this.receiptConfirmedUnits
-          ? balanceConfirmedUnits
-          : this.receiptConfirmedUnits,
-        senderEthBalance: balances.eth,
-        senderTokenBalance: balances.senderToken,
-        recipientTokenBalance: balances.recipientToken,
+      const now = performance.now()
+      if (now - this.lastStateSyncAt >= STATE_POLL_MS) {
+        this.lastStateSyncAt = now
+        if (!await this.refreshState()) return
       }
 
       const oldest = [...this.pending.values()]
-        .sort((left, right) => left.sentAt - right.sentAt)
+        .sort((left, right) => left.acceptedAt - right.acceptedAt)
         .slice(0, 10)
-      for (const transaction of oldest) await this.reconcile(transaction)
-
-      if (performance.now() - this.lastIntegrityCheckAt > 10_000) {
-        this.lastIntegrityCheckAt = performance.now()
-        const [implementationCode, tokenCode, health, latestBlock] = await Promise.all([
-          readCode(this.runtime.identity.implementation),
-          readCode(this.runtime.token),
-          getChainHealth(),
-          readLatestBlock(),
-        ])
-        if (implementationCode === '0x' || tokenCode === '0x' || !health.healthy) {
-          this.fail('Vibenet reset or maintenance detected — rebuilding the stream.', 'NETWORK_RESET')
-          return
-        }
-        const baseFee = BigInt(latestBlock.baseFeePerGas ?? 1_000_000_000n)
-        this.runtime.maxFeePerGas = baseFee * 2n + this.runtime.maxPriorityFeePerGas
-      }
+      const fallbackTransactions = this.transferFeedLive
+        ? oldest.filter((transaction) => performance.now() - transaction.acceptedAt > 3_000)
+        : oldest
+      for (const transaction of fallbackTransactions) await this.reconcile(transaction)
 
       this.recomputePending()
       if (this.snapshot.phase === 'stopping' && this.pending.size === 0 && !this.sending) {
@@ -417,13 +407,108 @@ export class MoneyStreamer {
     }
   }
 
+  private async refreshState(): Promise<boolean> {
+    const [balances, implementationCode, tokenCode, health, latestBlock, genesisHash] = await Promise.all([
+      readFreshBalances(
+        this.runtime.token,
+        this.runtime.identity.account.address,
+        this.runtime.identity.recipient,
+        this.streamSocket,
+      ),
+      readCode(this.runtime.identity.implementation, this.streamSocket),
+      readCode(this.runtime.token, this.streamSocket),
+      getChainHealth(),
+      readLatestBlock(this.streamSocket),
+      readGenesisHash(this.streamSocket),
+    ])
+    if (
+      implementationCode === '0x'
+      || tokenCode === '0x'
+      || !health.healthy
+      || genesisHash.toLowerCase() !== this.runtime.identity.genesisHash.toLowerCase()
+    ) {
+      this.fail('Vibenet reset or maintenance detected — rebuilding the stream.', 'NETWORK_RESET')
+      return false
+    }
+    if (balances.blockNumber > this.snapshot.head) {
+      const now = performance.now()
+      const blockDelta = balances.blockNumber - this.snapshot.head
+      const cadence = blockDelta > 0 ? (now - this.lastHeadSeenAt) / blockDelta : this.snapshot.cadenceMs
+      this.lastHeadSeenAt = now
+      this.snapshot = { ...this.snapshot, head: balances.blockNumber, cadenceMs: cadence }
+    }
+
+    const balanceConfirmedUnits = balances.recipientToken > this.runtime.recipientBaseline
+      ? balances.recipientToken - this.runtime.recipientBaseline
+      : 0n
+    this.snapshot = {
+      ...this.snapshot,
+      confirmedUnits: balanceConfirmedUnits > this.receiptConfirmedUnits
+        ? balanceConfirmedUnits
+        : this.receiptConfirmedUnits,
+      senderEthBalance: balances.eth,
+      senderTokenBalance: balances.senderToken > this.snapshot.senderTokenBalance
+        ? balances.senderToken
+        : this.snapshot.senderTokenBalance,
+      recipientTokenBalance: balances.recipientToken > this.snapshot.recipientTokenBalance
+        ? balances.recipientToken
+        : this.snapshot.recipientTokenBalance,
+    }
+    const baseFee = BigInt(latestBlock.baseFeePerGas ?? 1_000_000_000n)
+    this.runtime.maxFeePerGas = baseFee * 2n + this.runtime.maxPriorityFeePerGas
+    return true
+  }
+
+
+
+  private readonly handleHead = (head: { number: number }) => {
+    if (head.number <= this.snapshot.head) return
+    const observedAt = performance.now()
+    const blockDelta = head.number - this.snapshot.head
+    const cadence = (observedAt - this.lastHeadSeenAt) / blockDelta
+    this.lastHeadSeenAt = observedAt
+    this.snapshot = { ...this.snapshot, head: head.number, cadenceMs: cadence }
+    this.emit()
+  }
+
+
+  private readonly handleTransferLog = (log: TransferLog) => {
+    const transaction = this.pending.get(log.transactionHash.toLowerCase())
+    if (!transaction) return
+    const observedAt = performance.now()
+    this.pending.delete(log.transactionHash.toLowerCase())
+    this.receiptConfirmedUnits += transaction.amount
+    this.snapshot = {
+      ...this.snapshot,
+      head: Math.max(this.snapshot.head, log.blockNumber),
+      confirmedUnits: this.receiptConfirmedUnits > this.snapshot.confirmedUnits
+        ? this.receiptConfirmedUnits
+        : this.snapshot.confirmedUnits,
+      confirmedCount: this.snapshot.confirmedCount + 1,
+      senderTokenBalance: this.snapshot.senderTokenBalance > transaction.amount
+        ? this.snapshot.senderTokenBalance - transaction.amount
+        : 0n,
+      recipientTokenBalance: this.snapshot.recipientTokenBalance + transaction.amount,
+      transactions: this.replaceTransaction(transaction.hash, {
+        status: 'confirmed',
+        blockNumber: log.blockNumber,
+        latencyMs: observedAt - transaction.acceptedAt,
+      }),
+    }
+    this.emit()
+  }
   private async reconcile(transaction: PendingTransaction) {
-    const receipt = await readReceipt(transaction.hash)
+    const receipt = await readReceipt(transaction.hash, this.streamSocket)
+    const receiptObservedAt = performance.now()
+    if (!this.pending.has(transaction.hash.toLowerCase())) return
     if (receipt) {
       const succeeded = receiptSucceeded(receipt)
       const blockNumber = Number(BigInt(receipt.blockNumber))
-      const latencyMs = Date.now() - transaction.sentAt
       this.pending.delete(transaction.hash.toLowerCase())
+      const timing = {
+        blockNumber,
+        latencyMs: receiptObservedAt - transaction.acceptedAt,
+      }
       if (!succeeded) {
         this.snapshot = {
           ...this.snapshot,
@@ -431,8 +516,7 @@ export class MoneyStreamer {
           revertedCount: this.snapshot.revertedCount + 1,
           transactions: this.replaceTransaction(transaction.hash, {
             status: 'reverted',
-            blockNumber,
-            latencyMs,
+            ...timing,
             message: 'Call phase reverted; value returned to the accumulator',
           }),
         }
@@ -444,22 +528,26 @@ export class MoneyStreamer {
             ? this.receiptConfirmedUnits
             : this.snapshot.confirmedUnits,
           confirmedCount: this.snapshot.confirmedCount + 1,
+          senderTokenBalance: this.snapshot.senderTokenBalance > transaction.amount
+            ? this.snapshot.senderTokenBalance - transaction.amount
+            : 0n,
+          recipientTokenBalance: this.snapshot.recipientTokenBalance + transaction.amount,
           transactions: this.replaceTransaction(transaction.hash, {
             status: 'confirmed',
-            blockNumber,
-            latencyMs,
+            ...timing,
           }),
         }
       }
       return
     }
 
+
     const now = performance.now()
-    const chainTransaction = await readTransaction(transaction.hash).catch(() => null)
+    const chainTransaction = await readTransaction(transaction.hash, this.streamSocket).catch(() => null)
     if (!chainTransaction && Date.now() < transaction.validBefore - 500 && now - transaction.lastBroadcastAt > 700) {
       transaction.lastBroadcastAt = now
       try {
-        await sendRaw(transaction.raw)
+        await this.submitRaw(transaction.raw)
       } catch (error) {
         if (!isRecoverableBroadcastError(error)) {
           transaction.message = error instanceof Error ? error.message : 'Rebroadcast failed'
@@ -467,7 +555,7 @@ export class MoneyStreamer {
       }
     }
 
-    if (Date.now() - transaction.sentAt > PENDING_UNKNOWN_MS) {
+    if (performance.now() - transaction.acceptedAt > PENDING_UNKNOWN_MS) {
       this.pending.delete(transaction.hash.toLowerCase())
       this.snapshot = {
         ...this.snapshot,
@@ -490,7 +578,7 @@ export class MoneyStreamer {
   private recomputePending() {
     const values = [...this.pending.values()]
     const pendingUnits = values.reduce((sum, transaction) => sum + transaction.amount, 0n)
-    const latestPending = values.sort((left, right) => right.sentAt - left.sentAt)[0]
+    const latestPending = values.sort((left, right) => right.acceptedAt - left.acceptedAt)[0]
     this.snapshot = {
       ...this.snapshot,
       pendingUnits,
@@ -507,18 +595,25 @@ export class MoneyStreamer {
   private async fund() {
     if (this.fundingRunning || this.destroyed) return this.scheduleFunding()
     this.fundingRunning = true
+    let toppedUp = false
     try {
       if (this.snapshot.senderEthBalance < ETH_TOP_UP_THRESHOLD) {
         this.patch({ notice: 'Topping up gas automatically…' })
         await this.runtime.faucet.ensureEth(this.runtime.identity.account.address, ETH_TOP_UP_THRESHOLD)
+        toppedUp = true
       }
       if (this.snapshot.senderTokenBalance < USDV_TOP_UP_THRESHOLD) {
         this.patch({ notice: 'Topping up USDV automatically…' })
         await this.runtime.faucet.ensureUsdv(this.runtime.identity.account.address, USDV_TOP_UP_THRESHOLD)
+        toppedUp = true
       }
     } catch (error) {
       this.patch({ notice: error instanceof Error ? `Top-up retrying: ${error.message}` : 'Top-up retrying' })
     } finally {
+      if (toppedUp) {
+        this.lastStateSyncAt = -Infinity
+        this.scheduleWatcher(0)
+      }
       this.fundingRunning = false
       this.scheduleFunding()
     }
@@ -544,7 +639,7 @@ export class MoneyStreamer {
   private recomputePendingWithoutEmit() {
     const values = [...this.pending.values()]
     const pendingUnits = values.reduce((sum, transaction) => sum + transaction.amount, 0n)
-    const latestPending = values.sort((left, right) => right.sentAt - left.sentAt)[0]
+    const latestPending = values.sort((left, right) => right.acceptedAt - left.acceptedAt)[0]
     this.snapshot = {
       ...this.snapshot,
       pendingUnits,
