@@ -4,14 +4,17 @@ export const CHAIN_ID = 84_538_453
 export const NETWORK_NAME = 'Base Vibenet'
 export const API_URL = 'https://api.vibes.base.org'
 export const EXECUTION_RPC = 'https://rpc.vibes.base.org'
+export const EXECUTION_WS = 'wss://rpc.vibes.base.org/ws'
 export const ACCOUNT_RPC = `${API_URL}/api/vibenet/account/rpc`
 export const EXPLORER_URL = 'https://chain.base.org/vibenet/explorer'
 
 export const TOKEN_DECIMALS = 6
 export const TICK_MS = 200
-export const WATCH_MS = 400
-export const HEAD_POLL_MS = 1_000
-export const FUNDING_POLL_MS = 5_000
+/** Receipt reconciliation only when WebSocket delivery is unavailable. */
+export const FALLBACK_RECEIPT_POLL_MS = 500
+/** Low-rate balance, funding, and reset reconciliation while WebSocket delivery is healthy. */
+export const STATE_POLL_MS = 30_000
+export const FUNDING_POLL_MS = STATE_POLL_MS
 export const MAX_PENDING = 12
 export const MAX_TICKER_ROWS = 40
 export const PENDING_UNKNOWN_MS = 30_000

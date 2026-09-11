@@ -60,6 +60,10 @@ export async function fetchJson<T>(url: string, init: RequestInit = {}, timeoutM
   }
 }
 
+export type RpcRequester = {
+  request<T = unknown>(method: string, params?: unknown[]): Promise<T>
+}
+
 let rpcId = 0
 export async function rpc<T = unknown>(
   method: string,
@@ -85,6 +89,15 @@ export async function rpc<T = unknown>(
   return body.result as T
 }
 
+async function requestFrom<T>(requester: RpcRequester | undefined, method: string, params: unknown[], endpoint?: string) {
+  if (!requester) return rpc<T>(method, params, endpoint)
+  try {
+    return await requester.request<T>(method, params)
+  } catch {
+    return rpc<T>(method, params, endpoint)
+  }
+}
+
 export const getChainHealth = () => fetchJson<ChainHealth>(`${API_URL}/api/vibenet/chain-health`)
 export const getContracts = () => fetchJson<LiveContracts>(`${API_URL}/api/vibenet/contracts`)
 export const getFaucetStatus = () => fetchJson<FaucetStatus>(`${API_URL}/api/vibenet/faucet/status`)
@@ -100,63 +113,81 @@ export async function postFaucet(path: '/drip' | '/drip-usdv', address: Address)
   )
 }
 
-export async function readCode(address: Address): Promise<Hex> {
-  return rpc<Hex>('eth_getCode', [address, 'latest'])
+export async function readCode(address: Address, requester?: RpcRequester): Promise<Hex> {
+  return requestFrom<Hex>(requester, 'eth_getCode', [address, 'latest'])
 }
 
-export async function readGenesisHash(): Promise<Hex> {
-  const block = await rpc<{ hash: Hex }>('eth_getBlockByNumber', ['0x0', false])
+export async function readGenesisHash(requester?: RpcRequester): Promise<Hex> {
+  const block = await requestFrom<{ hash: Hex }>(requester, 'eth_getBlockByNumber', ['0x0', false])
   if (!block?.hash) throw new Error('Vibenet returned no genesis hash')
   return block.hash
 }
 
-export async function readHead(): Promise<number> {
-  return Number(BigInt(await rpc<Hex>('eth_blockNumber')))
+export async function readLatestBlock(requester?: RpcRequester): Promise<{ number: Hex; hash: Hex; baseFeePerGas?: Hex }> {
+  return requestFrom(requester, 'eth_getBlockByNumber', ['latest', false])
 }
 
-export async function readLatestBlock(): Promise<{ number: Hex; hash: Hex; baseFeePerGas?: Hex }> {
-  return rpc('eth_getBlockByNumber', ['latest', false])
-}
-
-export async function readEthBalance(address: Address, blockTag: Hex | 'latest' = 'latest'): Promise<bigint> {
-  return BigInt(await rpc<Hex>('eth_getBalance', [address, blockTag]))
+export async function readEthBalance(
+  address: Address,
+  blockTag: Hex | 'latest' = 'latest',
+  requester?: RpcRequester,
+): Promise<bigint> {
+  return BigInt(await requestFrom<Hex>(requester, 'eth_getBalance', [address, blockTag]))
 }
 
 export async function readTokenBalance(
   token: Address,
   address: Address,
   blockTag: Hex | 'latest' = 'latest',
+  requester?: RpcRequester,
 ): Promise<bigint> {
   const data = encodeFunctionData({ abi: erc20Abi, functionName: 'balanceOf', args: [address] })
-  const raw = await rpc<Hex>('eth_call', [{ to: token, data }, blockTag])
+  const raw = await requestFrom<Hex>(requester, 'eth_call', [{ to: token, data }, blockTag])
   return decodeAbiParameters([{ type: 'uint256' }], raw)[0] as bigint
 }
 
-export async function readFreshBalances(token: Address, sender: Address, recipient: Address) {
-  const blockNumber = await rpc<Hex>('eth_blockNumber')
+export async function readFreshBalances(
+  token: Address,
+  sender: Address,
+  recipient: Address,
+  requester?: RpcRequester,
+) {
+  const blockNumber = await requestFrom<Hex>(requester, 'eth_blockNumber', [])
   try {
     const [eth, senderToken, recipientToken] = await Promise.all([
-      readEthBalance(sender, blockNumber),
-      readTokenBalance(token, sender, blockNumber),
-      readTokenBalance(token, recipient, blockNumber),
+      readEthBalance(sender, blockNumber, requester),
+      readTokenBalance(token, sender, blockNumber, requester),
+      readTokenBalance(token, recipient, blockNumber, requester),
     ])
     return { blockNumber: Number(BigInt(blockNumber)), eth, senderToken, recipientToken }
   } catch {
     const [eth, senderToken, recipientToken] = await Promise.all([
-      readEthBalance(sender),
-      readTokenBalance(token, sender),
-      readTokenBalance(token, recipient),
+      readEthBalance(sender, 'latest', requester),
+      readTokenBalance(token, sender, 'latest', requester),
+      readTokenBalance(token, recipient, 'latest', requester),
     ])
     return { blockNumber: Number(BigInt(blockNumber)), eth, senderToken, recipientToken }
   }
 }
 
-export async function readReceipt(hash: Hex) {
-  return getTransactionReceipt(publicClient, { hash }).catch(() => null)
+export async function readReceipt(hash: Hex, requester?: RpcRequester) {
+  if (requester) {
+    try {
+      return await requester.request<Record<string, any> | null>('eth_getTransactionReceipt', [hash])
+    } catch {
+      return readReceipt(hash)
+    }
+  }
+  try {
+    return await getTransactionReceipt(publicClient, { hash })
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TransactionReceiptNotFoundError') return null
+    throw error
+  }
 }
 
-export async function readTransaction(hash: Hex) {
-  return rpc<Record<string, unknown> | null>('eth_getTransactionByHash', [hash])
+export async function readTransaction(hash: Hex, requester?: RpcRequester) {
+  return requestFrom<Record<string, unknown> | null>(requester, 'eth_getTransactionByHash', [hash])
 }
 
 export async function sendRaw(raw: Hex): Promise<Hex> {

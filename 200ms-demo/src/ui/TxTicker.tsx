@@ -40,7 +40,7 @@ export function TxTicker({ transactions }: Props) {
               <i aria-hidden="true" />{statusLabel[transaction.status]}
             </span>
             <span>{transaction.blockNumber ?? '—'}</span>
-            <span>{transaction.latencyMs ? `${transaction.latencyMs}ms` : '—'}</span>
+            <span>{transaction.latencyMs ? `${Math.round(transaction.latencyMs)}ms` : '—'}</span>
           </a>
         ))}
       </div>
