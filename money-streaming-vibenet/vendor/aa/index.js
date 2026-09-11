@@ -5232,7 +5232,7 @@ function hexToBytes2(hex) {
     const n1 = asciiToBase16(hex.charCodeAt(hi));
     const n2 = asciiToBase16(hex.charCodeAt(hi + 1));
     if (n1 === undefined || n2 === undefined) {
-      const char = hex[hi] + hex[hi + 1];
+      const char = `${hex[hi]}${hex[hi + 1]}`;
       throw new Error('hex string expected, got non-hex character "' + char + '" at index ' + hi);
     }
     array[ai] = n1 << 4 | n2;
