@@ -35,7 +35,7 @@ protocol and agent capabilities. Each top-level demo is independently runnable.
 | Demo Name | Type | Location | Description |
 |-----------|------|----------|-------------|
 | **Trading Agent** | Agents | `agents/trading-agent/` | CLI that scaffolds a fully configured LangChain trading agent on Base from a plain-English strategy |
-| **Money Streaming on Vibenet** | Protocol demo | [`money-streaming-vibenet/`](money-streaming-vibenet/) | Streams USDV through real EIP-8130 transactions at approximately five transfers per second, without a wallet connection |
+| **200ms Vibenet** | Protocol demo | [`200ms-vibenet/`](200ms-vibenet/) | Streams USDV through real EIP-8130 transactions at approximately five transfers per second, without a wallet connection |
 
 ## Getting Started
 

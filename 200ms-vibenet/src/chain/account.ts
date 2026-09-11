@@ -12,8 +12,8 @@ import {
 import type { LiveContracts } from './config'
 import { readCode } from './rpc'
 
-const ACCOUNT_STORAGE_KEY = 'base.money-stream.account.v2'
-const LEASE_STORAGE_KEY = 'base.money-stream.lease.v1'
+const ACCOUNT_STORAGE_KEY = 'base.200ms-vibenet.account.v2'
+const LEASE_STORAGE_KEY = 'base.200ms-vibenet.lease.v1'
 
 type StoredAccount = {
   version: 2

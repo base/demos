@@ -1,13 +1,14 @@
-# Money Streaming on Base Vibenet
+# 200ms Vibenet
 
 A single-page React app that streams Vibenet USDV through real EIP-8130 native
 account-abstraction transactions at approximately five transfers per second.
 It uses a locally generated devnet key: no wallet connection, extension, or
 signing prompt.
 
-After this directory is merged into `base/demos` and GitHub Pages is enabled,
-the live demo is published at `https://base.github.io/demos/` by the repository
-workflow.
+Live preview: <https://youssefea.github.io/demos/200ms/>
+
+The workflow committed to `base/demos` validates this directory but does not
+deploy to the Base organization GitHub Pages site.
 
 ## Run
 

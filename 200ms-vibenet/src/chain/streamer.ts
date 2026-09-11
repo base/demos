@@ -279,7 +279,7 @@ export class MoneyStreamer {
         chainId: CHAIN_ID,
         accountChanges: [],
         calls: encodeWalletCalls({ account: this.runtime.identity.account.address, calls }),
-        metadata: toHex(`money-stream:${this.sessionId}:${ordinal}:${validBefore}`),
+        metadata: toHex(`200ms-vibenet:${this.sessionId}:${ordinal}:${validBefore}`),
         nonceKey: nonceKeyMax,
         validBefore: BigInt(validBefore),
         maxFeePerGas: this.runtime.maxFeePerGas,
