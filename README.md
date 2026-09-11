@@ -27,23 +27,15 @@ A repository of demo applications that utilize Base and Coinbase Developer Platf
 
 ## Overview
 
-This repository contains example applications demonstrating various [Base] and [Coinbase Developer Platform] features. Each demo is designed to be simple, educational, and ready to run.
+This repository contains focused example applications demonstrating Base
+protocol and agent capabilities. Each top-level demo is independently runnable.
 
 ## Available Demos
 
 | Demo Name | Type | Location | Description |
 |-----------|------|----------|-------------|
-| **Agent Spend Permissions** | Base Account | `base-account/agent-spend-permissions/` | AI-powered Zora coin purchasing with Base Account spend permissions and gas-free transactions |
 | **Trading Agent** | Agents | `agents/trading-agent/` | CLI that scaffolds a fully configured LangChain trading agent on Base from a plain-English strategy |
-| **Base Pay Amazon** | Base Account | `base-account/base-pay-amazon/` | Chrome extension and checkout app that adds Base Pay to Amazon product pages |
-| **Base App Coins** | Base Account | `base-app-coins/` | Index and load metadata for Uniswap v4 pools related to coins created via the Base App |
-| **Full Mini App Demo** | MiniKit | `minikit/mini-app-full-demo/` | Comprehensive Base Mini App demo showcasing all functionality in Base App |
-| **Mini App Route** | MiniKit | `minikit/mini-app-route/` | Basic Next.js mini app template with routing examples |
-| **Mini App Wrapped** | MiniKit | `minikit/mini-app-wrapped/` | Simple Next.js mini app with MiniKit provider wrapper |
-| **Mini Neynar** | MiniKit | `minikit/mini-neynar/` | MiniKit template with Neynar API integration for Farcaster data |
-| **Mini Zora** | MiniKit | `minikit/my-mini-zora/` | MiniKit template integrated with Zora protocol for NFT interactions |
-| **Simple Mini App** | MiniKit | `minikit/my-simple-mini-app/` | Basic MiniKit template with essential features and notifications |
-| **Three Card Monte** | MiniKit | `minikit/three-card-monte/` | Interactive card game mini app with onchain rewards and leaderboard |
+| **200ms demo** | Protocol demo | [`200ms-demo/`](200ms-demo/) | Streams USDV through real EIP-8130 transactions at approximately five transfers per second, without a wallet connection |
 
 ## Getting Started
 
@@ -53,9 +45,7 @@ This repository contains example applications demonstrating various [Base] and [
 
 ## Requirements
 
-- Node.js (v16 or higher)
-- npm or yarn
-- A Base-compatible wallet (like Coinbase Wallet)
+- Follow the requirements in each demo's README.
 
 ## Contributing
 
