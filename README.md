@@ -30,12 +30,18 @@ A repository of demo applications that utilize Base and Coinbase Developer Platf
 This repository contains focused example applications demonstrating Base
 protocol and agent capabilities. Each top-level demo is independently runnable.
 
+The **200ms demo** is built around Base's Denim upgrade. Denim reduces the
+canonical block interval from two seconds to 200 milliseconds, producing five
+canonical blocks per second. The demo turns that protocol improvement into a
+product experience: stablecoin transfers settle quickly enough to feel like a
+continuous stream of money rather than a sequence of isolated payments.
+
 ## Available Demos
 
 | Demo Name | Type | Location | Description |
 |-----------|------|----------|-------------|
 | **Trading Agent** | Agents | `agents/trading-agent/` | CLI that scaffolds a fully configured LangChain trading agent on Base from a plain-English strategy |
-| **200ms demo** | Protocol demo | [`200ms-demo/`](200ms-demo/) | Streams USDV through real EIP-8130 transactions at approximately five transfers per second, without a wallet connection |
+| **200ms demo** | Protocol demo | [`200ms-demo/`](200ms-demo/) | Demonstrates how Denim's 200ms canonical blocks enable new real-time use cases by streaming USDV through actual onchain transfers |
 
 ## Getting Started
 
