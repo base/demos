@@ -1,8 +1,120 @@
 import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { toClientEvmSigner } from "@x402/evm";
+import { usdToBaseUnitsFloor } from "../../guardrails.js";
+
+/*
+ * Shared x402 payment client for the paid-data tools.
+ *
+ * Guardrails enforced here (in code, for every paid request):
+ * - Requests may only go to the fixed hosts used by the generated x402 tools, plus any hosts the
+ *   operator lists in ALLOWED_X402_HOSTS.
+ * - Redirects are never followed (redirect: "manual"; any 3xx is an error), for unpaid and paid
+ *   requests, so an allowed host cannot forward the request or its payment to another host.
+ * - Each payment must be in USDC on Base and at most MAX_X402_PAYMENT_USD (default 0.10).
+ */
+
+const DEFAULT_MAX_X402_PAYMENT_USD = 0.1;
+
+const BUILTIN_X402_HOSTS: string[] = [
+{{#if hasCoingecko}}
+  "pro-api.coingecko.com",
+{{/if}}
+{{#if hasCoinmarketcap}}
+  "pro-api.coinmarketcap.com",
+{{/if}}
+{{#if hasAlchemyX402}}
+  "x402.alchemy.com",
+{{/if}}
+{{#if hasNansenX402}}
+  "api.nansen.ai",
+{{/if}}
+];
+
+/** USDC per network (x402 v2 CAIP-2 ids and v1 network names). 6 decimals. */
+const USDC_BY_NETWORK: Record<string, string> = {
+  "eip155:8453": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+  base: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+};
+const USDC_DECIMALS = 6;
 
 let _fetchWithPayment: typeof fetch | null = null;
+
+export function getMaxX402PaymentUsd(): number {
+  const raw = process.env.MAX_X402_PAYMENT_USD?.trim();
+  if (!raw) return DEFAULT_MAX_X402_PAYMENT_USD;
+  const parsed = Number(raw);
+  if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  console.warn(
+    `[guardrail] Invalid MAX_X402_PAYMENT_USD="${raw}". Falling back to ${DEFAULT_MAX_X402_PAYMENT_USD}.`
+  );
+  return DEFAULT_MAX_X402_PAYMENT_USD;
+}
+
+export function getAllowedX402PaymentHosts(): Set<string> {
+  const hosts = new Set(BUILTIN_X402_HOSTS);
+{{#if hasNansenX402}}
+  if (process.env.NANSEN_X402_URL) {
+    try {
+      hosts.add(new URL(process.env.NANSEN_X402_URL).hostname.toLowerCase());
+    } catch {
+      /* ignore invalid override */
+    }
+  }
+{{/if}}
+  for (const host of (process.env.ALLOWED_X402_HOSTS ?? "").split(",")) {
+    const trimmed = host.trim().toLowerCase();
+    if (trimmed) hosts.add(trimmed);
+  }
+  return hosts;
+}
+
+/** Returns a reason when a payment requirement is over the cap or not USDC on Base, else null. */
+export function checkX402Requirement(requirement: any): string | null {
+  const network = String(requirement?.network ?? "");
+  const asset = String(requirement?.asset ?? "").toLowerCase();
+  const expectedAsset = USDC_BY_NETWORK[network];
+  if (!expectedAsset || asset !== expectedAsset) {
+    return `payment asset ${asset || "(none)"} on ${network || "(none)"} is not USDC on Base`;
+  }
+  const rawAmount = requirement?.amount ?? requirement?.maxAmountRequired;
+  let amount: bigint;
+  try {
+    amount = BigInt(String(rawAmount));
+  } catch {
+    return `payment amount ${rawAmount} is not an integer`;
+  }
+  const capUnits = usdToBaseUnitsFloor(getMaxX402PaymentUsd(), USDC_DECIMALS);
+  if (amount < 0n || amount > capUnits) {
+    return `payment of ${Number(amount) / 10 ** USDC_DECIMALS} USDC exceeds MAX_X402_PAYMENT_USD ${getMaxX402PaymentUsd()}`;
+  }
+  return null;
+}
+
+/** x402 client policy: drop payment options that fail checkX402Requirement. */
+export function x402SpendPolicy(_x402Version: number, requirements: any[]): any[] {
+  return requirements.filter((requirement) => {
+    const reason = checkX402Requirement(requirement);
+    if (reason) console.warn(`[guardrail] Rejected x402 payment option: ${reason}`);
+    return !reason;
+  });
+}
+
+/** Register the spend policy (and the library's own spend controls when available). */
+export function applyX402Guardrails(client: x402Client): x402Client {
+  client.registerPolicy(x402SpendPolicy as any);
+  const anyClient = client as any;
+  if (typeof anyClient.onBeforePaymentCreation === "function") {
+    anyClient.onBeforePaymentCreation(async (context: any) => {
+      const reason = checkX402Requirement(context?.selectedRequirements);
+      return reason ? { abort: true, reason: `[guardrail] ${reason}` } : undefined;
+    });
+  }
+  if (typeof anyClient.setSpendControls === "function") {
+    anyClient.setSpendControls({ maxAmountPerPayment: `$${getMaxX402PaymentUsd()}` });
+  }
+  return client;
+}
 
 export function initX402Client(account: any, publicClient: any): void {
   if (!account) {
@@ -11,12 +123,56 @@ export function initX402Client(account: any, publicClient: any): void {
   const signer = toClientEvmSigner(account, publicClient);
   const client = new x402Client();
   registerExactEvmScheme(client, { signer });
-  _fetchWithPayment = wrapFetchWithPayment(fetch, client);
+  applyX402Guardrails(client);
+  // The payment wrapper builds its own Request objects (initial, hook-retry and paid retry), so
+  // the host/redirect checks are applied to the fetch it uses, i.e. to every request it sends.
+  _fetchWithPayment = wrapFetchWithPayment(noRedirectAllowlistedFetch, client);
+}
+
+function requestHost(url: string): string {
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    throw new Error(`[guardrail] Invalid x402 URL: ${url}`);
+  }
+  if (!getAllowedX402PaymentHosts().has(host)) {
+    throw new Error(`[guardrail] x402 host ${host} is not a built-in data host or in ALLOWED_X402_HOSTS.`);
+  }
+  return host;
+}
+
+/**
+ * Underlying fetch for the x402 wrapper: every request (unpaid and paid) must target an allowed
+ * host and is sent with redirect: "manual". Redirects are never followed and any 3xx response is
+ * an error, so an allowlisted host cannot bounce the request (or its payment) to another host.
+ */
+async function noRedirectAllowlistedFetch(
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1]
+): Promise<Response> {
+  const request = new Request(input, { ...init, redirect: "manual" });
+  const host = requestHost(request.url);
+  const response = await fetch(request);
+  if (response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400)) {
+    const location = response.headers.get("location") ?? "(no location)";
+    console.warn(`[guardrail] Blocked x402 redirect from ${host} (HTTP ${response.status}) to ${location}.`);
+    throw new Error(
+      `[guardrail] x402 request to ${host} returned a redirect (HTTP ${response.status}); redirects are not followed.`
+    );
+  }
+  return response;
 }
 
 export function getX402Fetch(): typeof fetch {
   if (!_fetchWithPayment) {
     throw new Error("x402 client not initialized. Ensure initX402Client(account) is called in wallet setup.");
   }
-  return _fetchWithPayment;
+  const paidFetch = _fetchWithPayment;
+  const guardedFetch = async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    requestHost(url); // fail fast before the wrapper builds any request
+    return paidFetch(input, { ...init, redirect: "manual" });
+  };
+  return guardedFetch as typeof fetch;
 }

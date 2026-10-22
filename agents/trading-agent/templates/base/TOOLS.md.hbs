@@ -24,6 +24,21 @@ Runs a continuous trading loop on Base using the following strategy:
 - Slippage tolerance: {{guardrails.slippagePct}}%
 - Stop-loss threshold: {{guardrails.stopLossPct}}%
 - Max position size: {{guardrails.maxPositionPct}}% of wallet
+- Per-trade USD cap: `MAX_TRADE_USD` (default $100) for USD/stablecoin-denominated inputs
+- Arbitrary destinations (raw transactions, contract writes, transfers, non-router approvals) require `ALLOWED_ADDRESSES`
+- Unlimited approvals (>= 2^255) are rejected; stablecoin approvals are capped by `MAX_TRADE_USD`
+- Default-deny: tools without a policy that are not read-only are blocked unless listed in `GUARDRAIL_ALLOW_TOOLS`
+{{#if isCdpServerWallet}}
+- Raw calls may only carry decoded token transfer/approval calldata (`ALLOW_ARBITRARY_CALLDATA` opts out)
+{{/if}}
+{{#if isBankr}}
+- `bankr_execute` is disabled unless `BANKR_ALLOW_EXECUTE=true`
+{{/if}}
+{{#if hasAnyX402}}
+- x402 payments are capped at `MAX_X402_PAYMENT_USD` (default 0.10) per request
+{{/if}}
+
+These are enforced in code by `src/guardrails.ts`; blocked calls return a `[guardrail] Blocked ...` error. See README.md for what is and is not enforced.
 
 ## How to run
 
