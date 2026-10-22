@@ -1,3 +1,17 @@
+import { errorResult } from "./tool-result.js";
+
+/*
+ * Runtime guardrails.
+ *
+ * These checks are enforced in code around every tool the agent can call (default-deny).
+ * They do not depend on the model following the strategy prompt. A blocked call returns a
+ * JSON error string to the model (it never throws) and logs a `[guardrail] ...` line.
+ *
+ * The operator can loosen or tighten them with env vars (see .env.example) or by editing
+ * this file. Tools classified as read-only pass through unchanged; every other tool must have
+ * a policy below or be listed in GUARDRAIL_ALLOW_TOOLS, otherwise calls to it are blocked.
+ */
+
 const TEST_MODE = /^(1|true|yes)$/i.test(process.env.TEST_MODE ?? "{{testMode}}");
 const DEFAULT_SLIPPAGE_PCT = TEST_MODE
   ? {{defaultSlippagePct}}
@@ -8,6 +22,7 @@ const DEFAULT_STOP_LOSS_PCT = TEST_MODE
 const DEFAULT_MAX_POSITION_PCT = TEST_MODE
   ? {{defaultMaxPositionPct}}
   : {{guardrails.maxPositionPct}};
+const DEFAULT_MAX_TRADE_USD = 100;
 
 const SLIPPAGE_PCT = parseFloat(process.env.SLIPPAGE_PCT ?? String(DEFAULT_SLIPPAGE_PCT));
 const STOP_LOSS_PCT = parseFloat(process.env.STOP_LOSS_PCT ?? String(DEFAULT_STOP_LOSS_PCT));
@@ -49,11 +64,1034 @@ export function checkPositionSize(
   return true;
 }
 
-export function wrapWithGuardrails(tools: any[]): any[] {
-  // Guardrails are checked within the strategy prompt and
-  // available as utility functions for custom tool wrappers.
-  // The agent's system prompt already includes guardrail constraints.
-  return tools;
+// ---------------------------------------------------------------------------
+// Operator-configurable policy (read at call time so env changes apply on restart/tests)
+// ---------------------------------------------------------------------------
+
+function parseList(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function envFlag(name: string): boolean {
+  return /^(1|true|yes)$/i.test(process.env[name]?.trim() ?? "");
+}
+
+/** Destinations (wallets, contracts, ENS names) the agent may send funds/calls/approvals to. */
+export function getAllowedAddresses(): Set<string> {
+  return new Set(parseList(process.env.ALLOWED_ADDRESSES));
+}
+
+/** Hostnames that pay-per-request proxies (sponge_x402_fetch) may pay. */
+export function getAllowedX402Hosts(): Set<string> {
+  return new Set(parseList(process.env.ALLOWED_X402_HOSTS));
+}
+
+/** Extra tool names the operator explicitly trusts. They run without any guardrail policy. */
+export function getAllowedToolOverrides(): Set<string> {
+  return new Set(parseList(process.env.GUARDRAIL_ALLOW_TOOLS));
+}
+
+/**
+ * ALLOW_ARBITRARY_CALLDATA=true lets cdp_send_transaction / cdp_contract_write send calldata the
+ * guardrails cannot decode to allowlisted targets. That grants the agent unrestricted execution
+ * authority on every allowlisted contract. Default: false.
+ */
+export function allowArbitraryCalldata(): boolean {
+  return envFlag("ALLOW_ARBITRARY_CALLDATA");
+}
+
+/**
+ * BANKR_ALLOW_EXECUTE=true enables bankr_execute. Bankr takes free-text prompts that the
+ * guardrails can only inspect on a best-effort basis, so enabling it is effectively unrestricted.
+ * Default: false.
+ */
+export function allowBankrExecute(): boolean {
+  return envFlag("BANKR_ALLOW_EXECUTE");
+}
+
+/** Absolute per-trade cap in USD for tool inputs that are USD/stablecoin-denominated. */
+export function getMaxTradeUsd(): number | null {
+  const raw = process.env.MAX_TRADE_USD?.trim();
+  if (!raw) return DEFAULT_MAX_TRADE_USD;
+  if (/^(unlimited|off|none)$/i.test(raw)) return null;
+  const parsed = Number(raw);
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  console.warn(
+    `[guardrail] Invalid MAX_TRADE_USD="${raw}". Falling back to ${DEFAULT_MAX_TRADE_USD}.`
+  );
+  return DEFAULT_MAX_TRADE_USD;
+}
+
+// ---------------------------------------------------------------------------
+// Known tokens (shared by the protocol tools and the guard so both use the same decimals)
+// ---------------------------------------------------------------------------
+
+export interface KnownToken {
+  symbol: string;
+  address: `0x${string}`;
+  decimals: number;
+  /** USD-pegged stablecoin: amounts are capped by MAX_TRADE_USD. */
+  stable: boolean;
+}
+
+export const KNOWN_TOKENS: KnownToken[] = [
+  { symbol: "WETH", address: "0x4200000000000000000000000000000000000006", decimals: 18, stable: false },
+  { symbol: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6, stable: true },
+  { symbol: "USDbC", address: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", decimals: 6, stable: true },
+  { symbol: "DAI", address: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", decimals: 18, stable: true },
+  { symbol: "cbBTC", address: "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf", decimals: 8, stable: false },
+];
+
+export const KNOWN_TOKEN_SYMBOLS = KNOWN_TOKENS.map((token) => token.symbol);
+
+/** Resolve a token symbol (case-insensitive) or address to a known token, else null. */
+export function resolveKnownToken(input: unknown): KnownToken | null {
+  if (typeof input !== "string") return null;
+  const normalized = input.trim().toLowerCase();
+  return (
+    KNOWN_TOKENS.find(
+      (token) => token.symbol.toLowerCase() === normalized || token.address.toLowerCase() === normalized
+    ) ?? null
+  );
+}
+
+/**
+ * Convert a human-readable decimal amount to token base units. Fractional digits beyond the
+ * token's decimals are rounded UP so the guard never underestimates what execution spends.
+ * Returns null for anything that is not a plain non-negative decimal number.
+ */
+export function toBaseUnits(amount: unknown, decimals: number): bigint | null {
+  const text = typeof amount === "number" ? numberToPlainDecimal(amount) : amount;
+  if (typeof text !== "string") return null;
+  const cleaned = text.trim().replace(/[,_\s]/g, "");
+  const match = /^(\d*)(?:\.(\d*))?$/.exec(cleaned);
+  if (!match || (match[1] === "" && !match[2])) return null;
+  const whole = match[1] || "0";
+  const fraction = match[2] ?? "";
+  const kept = fraction.slice(0, decimals).padEnd(decimals, "0");
+  const dropped = fraction.slice(decimals);
+  let units = BigInt(whole) * 10n ** BigInt(decimals) + BigInt(kept || "0");
+  if (/[1-9]/.test(dropped)) units += 1n;
+  return units;
+}
+
+/** Base units -> approximate number. For logs/messages only; never compare caps with this. */
+function baseUnitsToNumber(raw: bigint, decimals: number): number {
+  const scale = 10n ** BigInt(decimals);
+  return Number(raw / scale) + Number(raw % scale) / Number(scale);
+}
+
+/** Expand a finite non-negative number to a plain decimal string (no exponent). */
+function numberToPlainDecimal(value: number): string | null {
+  if (!Number.isFinite(value) || value < 0) return null;
+  return value.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 20 });
+}
+
+/**
+ * Convert a USD cap/threshold to token base units, rounding DOWN so the bigint cap is never
+ * looser than the configured number. Use this (not floats) for every cap comparison.
+ */
+export function usdToBaseUnitsFloor(usd: number, decimals: number): bigint {
+  const text = numberToPlainDecimal(usd);
+  if (text === null) return 0n;
+  const [whole, fraction = ""] = text.split(".");
+  const kept = fraction.slice(0, decimals).padEnd(decimals, "0");
+  return BigInt(whole || "0") * 10n ** BigInt(decimals) + BigInt(kept || "0");
+}
+
+/** True when `amount` base units (with `decimals`) exceeds `capUsd`. Exact bigint comparison. */
+function exceedsUsdCap(amount: bigint, decimals: number, capUsd: number): boolean {
+  return amount > usdToBaseUnitsFloor(capUsd, decimals);
+}
+
+function parseBigInt(value: unknown): bigint | null {
+  try {
+    const text = String(value).trim();
+    if (!/^(0x[0-9a-fA-F]+|\d+)$/.test(text)) return null;
+    return BigInt(text);
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Destinations, spenders, approvals
+// ---------------------------------------------------------------------------
+
+/**
+ * Spenders hardcoded by the generated protocol tool templates. Approvals to these are allowed
+ * without being listed in ALLOWED_ADDRESSES (amounts must still be bounded).
+ */
+export const KNOWN_PROTOCOL_SPENDERS: Record<string, string> = {
+{{#if hasUniswap}}
+  "0x000000000022d473030f116ddee9f6b43ac78ba3": "Uniswap Permit2",
+  // Base addresses from github.com/Uniswap/universal-router deploy-addresses/base.json
+  "0x6ff5693b99212da76ad316178a184ab56d299b43": "Uniswap Universal Router (v2)",
+  "0xfdf682f51fe81aa4898f0ae2163d8a55c127fbc7": "Uniswap Universal Router (v2.1.1)",
+  "0xd6145b2d3f379919e8cdeda7b97e37c4b2ca9c40": "Uniswap Universal Router (v2.1.2)",
+  "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad": "Uniswap Universal Router (v1.2)",
+{{/if}}
+{{#if hasAerodrome}}
+  "0xcf77a3ba9a5ca399b7c97c74d54e5b1beb874e43": "Aerodrome Router",
+{{/if}}
+{{#if hasAvantis}}
+  "0x8a311d7048c35985aa31c131b9a13e03a5f7422d": "Avantis TradingStorage",
+{{/if}}
+};
+
+/** Approvals at or above 2^255 (incl. maxUint256) are treated as unlimited and rejected. */
+export const UNLIMITED_APPROVAL_THRESHOLD = 2n ** 255n;
+
+const ADDRESS_SCAN_RE = /0x[0-9a-fA-F]{40}/g;
+const ENS_SCAN_RE = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:eth|base\.eth)\b/gi;
+
+export function isAllowedDestination(destination: unknown): boolean {
+  if (typeof destination !== "string" || !destination.trim()) return false;
+  return getAllowedAddresses().has(destination.trim().toLowerCase());
+}
+
+function hasOwn(record: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key);
+}
+
+export function isAllowedSpender(spender: unknown): boolean {
+  if (typeof spender !== "string") return false;
+  const normalized = spender.trim().toLowerCase();
+  return hasOwn(KNOWN_PROTOCOL_SPENDERS, normalized) || getAllowedAddresses().has(normalized);
+}
+
+export function isUnlimitedApproval(amount: bigint): boolean {
+  return amount >= UNLIMITED_APPROVAL_THRESHOLD;
+}
+
+/** Known stablecoin metadata for `token`, else null (non-stablecoins have no USD cap). */
+function knownStable(token: unknown): KnownToken | null {
+  const known = resolveKnownToken(token);
+  return known?.stable ? known : null;
+}
+
+/**
+ * Policy for the final ERC-20 approval amount, shared by every approval path
+ * (cdp_erc20_approve, wallet.approveErc20 used by protocol tools, Uniswap API approvals,
+ * and decoded approve calldata). Returns a reason when blocked, else null.
+ */
+export function checkApprovalAmount(token: unknown, spender: unknown, amount: bigint): string | null {
+  if (amount < 0n) return "Negative approval amount.";
+  if (isUnlimitedApproval(amount)) {
+    return `Unlimited approval (>= 2^255 / maxUint256) to ${spender} is blocked. Approve the exact amount needed.`;
+  }
+  if (!isAllowedSpender(spender)) {
+    return `Spender ${spender} is not a known protocol router and not in ALLOWED_ADDRESSES.`;
+  }
+  const stable = knownStable(token);
+  const cap = getMaxTradeUsd();
+  if (stable && cap !== null && exceedsUsdCap(amount, stable.decimals, cap)) {
+    return `Approval of $${baseUnitsToNumber(amount, stable.decimals)} exceeds MAX_TRADE_USD $${cap}.`;
+  }
+  return null;
+}
+
+/** Throwing variant of checkApprovalAmount for code paths that encode approvals directly. */
+export function assertApprovalAllowed(token: unknown, spender: unknown, amount: bigint): void {
+  const reason = checkApprovalAmount(token, spender, amount);
+  if (reason) {
+    console.warn(`[guardrail] Blocked approval: ${reason}`);
+    throw new Error(`[guardrail] Blocked approval: ${reason}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Calldata decoding for raw transaction / contract write tools
+// ---------------------------------------------------------------------------
+
+type DecodedCall =
+  | { kind: "erc20-transfer"; method: string; recipient: string; amount: bigint }
+  | { kind: "approve"; method: string; spender: string; amount: bigint }
+  | { kind: "approval-for-all"; method: string; operator: string; approved: boolean }
+  | { kind: "nft-transfer"; method: string; recipient: string };
+
+type CallSpec = {
+  method: string;
+  /** Minimum number of 32-byte words after the selector. */
+  words: number;
+  /**
+   * Index of a dynamic `bytes` argument (head word holding its offset). Its offset/length are
+   * validated against the calldata before decode runs.
+   */
+  bytesArg?: number;
+  decode: (words: string[]) => DecodedCall | string;
+};
+
+function wordToAddress(word: string): string | null {
+  if (!/^0{24}[0-9a-f]{40}$/.test(word)) return null;
+  return `0x${word.slice(24)}`;
+}
+
+function addressArg(words: string[], index: number, label: string): string {
+  const address = wordToAddress(words[index]);
+  if (!address) throw new Error(`malformed ${label} argument`);
+  return address;
+}
+
+const RECOGNIZED_CALLS: Record<string, CallSpec> = {
+  "0xa9059cbb": {
+    method: "transfer(address,uint256)",
+    words: 2,
+    decode: (w) => ({ kind: "erc20-transfer", method: "transfer", recipient: addressArg(w, 0, "to"), amount: BigInt(`0x${w[1]}`) }),
+  },
+  // ERC-20 transferFrom and ERC-721 transferFrom share this selector; the third word is an
+  // amount (ERC-20) or a token id (ERC-721). Recipient checks apply to both.
+  "0x23b872dd": {
+    method: "transferFrom(address,address,uint256)",
+    words: 3,
+    decode: (w) => {
+      addressArg(w, 0, "from");
+      return { kind: "erc20-transfer", method: "transferFrom", recipient: addressArg(w, 1, "to"), amount: BigInt(`0x${w[2]}`) };
+    },
+  },
+  "0x095ea7b3": {
+    method: "approve(address,uint256)",
+    words: 2,
+    decode: (w) => ({ kind: "approve", method: "approve", spender: addressArg(w, 0, "spender"), amount: BigInt(`0x${w[1]}`) }),
+  },
+  "0xa22cb465": {
+    method: "setApprovalForAll(address,bool)",
+    words: 2,
+    decode: (w) => {
+      const operator = addressArg(w, 0, "operator");
+      const flag = BigInt(`0x${w[1]}`);
+      if (flag > 1n) return "malformed bool argument";
+      return { kind: "approval-for-all", method: "setApprovalForAll", operator, approved: flag === 1n };
+    },
+  },
+  "0x42842e0e": {
+    method: "safeTransferFrom(address,address,uint256)",
+    words: 3,
+    decode: (w) => {
+      addressArg(w, 0, "from");
+      return { kind: "nft-transfer", method: "safeTransferFrom", recipient: addressArg(w, 1, "to") };
+    },
+  },
+  "0xb88d4fde": {
+    method: "safeTransferFrom(address,address,uint256,bytes)",
+    words: 4,
+    bytesArg: 3,
+    decode: (w) => {
+      addressArg(w, 0, "from");
+      return { kind: "nft-transfer", method: "safeTransferFrom", recipient: addressArg(w, 1, "to") };
+    },
+  },
+  "0xf242432a": {
+    method: "safeTransferFrom(address,address,uint256,uint256,bytes)",
+    words: 5,
+    bytesArg: 4,
+    decode: (w) => {
+      addressArg(w, 0, "from");
+      return { kind: "nft-transfer", method: "safeTransferFrom (ERC-1155)", recipient: addressArg(w, 1, "to") };
+    },
+  },
+};
+
+/** Selectors rejected with a specific instruction for the model. */
+const REJECTED_WITH_GUIDANCE: Record<string, string> = {
+  "0x39509351":
+    "increaseAllowance(address,uint256) is not allowed because guardrails cannot see the resulting total allowance. " +
+    "Use approve(spender, amount) with the exact amount needed instead.",
+};
+
+/**
+ * Validate an ABI-encoded dynamic `bytes` argument: the offset must be word-aligned and point just
+ * past the head, the length must fit, the calldata must end exactly at the padded tail, and the
+ * padding must be zero. Returns a reason when malformed, else null.
+ */
+function validateBytesArg(words: string[], headWords: number, argIndex: number): string | null {
+  const offset = BigInt(`0x${words[argIndex]}`);
+  const totalBytes = BigInt(words.length) * 32n;
+  if (offset % 32n !== 0n) return "bytes offset is not word-aligned";
+  if (offset < BigInt(headWords) * 32n || offset + 32n > totalBytes) return "bytes offset is out of bounds";
+  const lengthIndex = Number(offset / 32n);
+  const length = BigInt(`0x${words[lengthIndex]}`);
+  const paddedLength = ((length + 31n) / 32n) * 32n;
+  if (offset + 32n + paddedLength !== totalBytes) return "bytes length does not match calldata size";
+  const tail = words.slice(lengthIndex + 1).join("");
+  if (/[^0]/.test(tail.slice(Number(length) * 2))) return "bytes padding is not zero";
+  return null;
+}
+
+/** Selectors that are always rejected (unless ALLOW_ARBITRARY_CALLDATA=true), with a clear reason. */
+const EXPLICITLY_BLOCKED_SELECTORS: Record<string, string> = {
+  "0xac9650d8": "multicall(bytes[])",
+  "0x5ae401dc": "multicall(uint256,bytes[])",
+  "0x1f0464d1": "multicall(bytes32,bytes[])",
+  "0x252dba42": "Multicall aggregate",
+  "0x82ad56cb": "Multicall3 aggregate3",
+  "0x174dea71": "Multicall3 aggregate3Value",
+  "0x3593564c": "Universal Router execute (nested commands)",
+  "0x24856bc3": "Universal Router execute (nested commands)",
+  "0xd505accf": "EIP-2612 permit",
+  "0x8fcbaf0c": "DAI permit",
+  "0x2b67b570": "Permit2 permit (single)",
+  "0x2a2d80d1": "Permit2 permit (batch)",
+  "0x30f28b7a": "Permit2 permitTransferFrom",
+  "0xedd9444b": "Permit2 permitBatchTransferFrom",
+  "0x36c78516": "Permit2 transferFrom",
+  "0x0d58b1db": "Permit2 batch transferFrom",
+  "0x87517c45": "Permit2 approve",
+  "0x2eb2c2d6": "ERC-1155 safeBatchTransferFrom",
+};
+
+/** Decode calldata into a recognized call, or return a reason it is not recognized. */
+export function decodeRecognizedCall(data: string): DecodedCall | string {
+  const hex = data.toLowerCase();
+  if (!/^0x[0-9a-f]*$/.test(hex) || (hex.length - 2) % 2 !== 0) return "calldata is not valid hex";
+  if (hex.length < 10) return "calldata is shorter than a 4-byte selector";
+  const selector = hex.slice(0, 10);
+  if (hasOwn(REJECTED_WITH_GUIDANCE, selector)) return `${REJECTED_WITH_GUIDANCE[selector]} (${selector})`;
+  if (hasOwn(EXPLICITLY_BLOCKED_SELECTORS, selector)) {
+    return `${EXPLICITLY_BLOCKED_SELECTORS[selector]} (${selector}) is not allowed`;
+  }
+  const spec = hasOwn(RECOGNIZED_CALLS, selector) ? RECOGNIZED_CALLS[selector] : undefined;
+  if (!spec) return `unrecognized function selector ${selector}`;
+  const body = hex.slice(10);
+  if (body.length % 64 !== 0) return `${spec.method}: calldata is not word-aligned`;
+  const words = body.match(/.{64}/g) ?? [];
+  if (words.length < spec.words || (spec.bytesArg === undefined && words.length !== spec.words)) {
+    return `${spec.method}: unexpected calldata length`;
+  }
+  if (spec.bytesArg !== undefined) {
+    const bytesReason = validateBytesArg(words, spec.words, spec.bytesArg);
+    if (bytesReason) return `${spec.method}: ${bytesReason}`;
+  }
+  try {
+    return spec.decode(words);
+  } catch (error) {
+    return `${spec.method}: ${(error as Error).message}`;
+  }
+}
+
+/** Decode approve/setApprovalForAll calldata (used by protocol tools). increaseAllowance returns null. */
+export function inspectApprovalCalldata(
+  data: unknown
+): { method: string; spender: `0x${string}`; amount: bigint } | null {
+  if (typeof data !== "string") return null;
+  const decoded = decodeRecognizedCall(data);
+  if (typeof decoded === "string") return null;
+  if (decoded.kind === "approve") {
+    return { method: decoded.method, spender: decoded.spender as `0x${string}`, amount: decoded.amount };
+  }
+  if (decoded.kind === "approval-for-all") {
+    return {
+      method: decoded.method,
+      spender: decoded.operator as `0x${string}`,
+      amount: decoded.approved ? 2n ** 256n - 1n : 0n,
+    };
+  }
+  return null;
+}
+
+/**
+ * Policy for raw calls (cdp_send_transaction, cdp_contract_write). The target must be in
+ * ALLOWED_ADDRESSES, and the calldata must decode to a recognized token call whose effect
+ * (recipient / spender / operator / amount) passes the same policies as the dedicated tools.
+ */
+export function checkRawCall(target: unknown, data: unknown, valueWei: unknown, label = "Destination"): Decision {
+  const destinationBlock = requireDestination(label, target);
+  if (destinationBlock) return destinationBlock;
+
+  const value = valueWei == null || valueWei === "" ? 0n : parseBigInt(valueWei);
+  if (value === null || value < 0n) return block("valueWei must be a non-negative integer string.");
+
+  const hex = typeof data === "string" ? data.trim() : data == null ? "" : null;
+  if (hex === null) return block("data must be a hex string.");
+  if (hex === "" || hex === "0x") {
+    // Plain ETH send to an allowlisted destination.
+    return allow(undefined, value > 0n ? "ETH transfer to allowlisted destination" : "empty call");
+  }
+
+  const decoded = decodeRecognizedCall(hex);
+  if (typeof decoded === "string") {
+    // increaseAllowance etc. are rejected even with ALLOW_ARBITRARY_CALLDATA=true.
+    if (hasOwn(REJECTED_WITH_GUIDANCE, hex.slice(0, 10).toLowerCase())) return block(decoded);
+    if (allowArbitraryCalldata()) {
+      return allow(undefined, `ALLOW_ARBITRARY_CALLDATA=true (${decoded})`);
+    }
+    return block(
+      `${decoded}. Raw calls may only carry ERC-20/721/1155 transfer and approval calldata. ` +
+        "The operator can set ALLOW_ARBITRARY_CALLDATA=true to grant unrestricted execution on allowlisted targets."
+    );
+  }
+  if (value > 0n) return block(`${decoded.method} must not send ETH value.`);
+
+  switch (decoded.kind) {
+    case "erc20-transfer": {
+      if (!isAllowedDestination(decoded.recipient)) {
+        return block(`${decoded.method} recipient ${decoded.recipient} is not in ALLOWED_ADDRESSES.`);
+      }
+      const stable = knownStable(target);
+      const cap = getMaxTradeUsd();
+      if (stable && cap !== null && exceedsUsdCap(decoded.amount, stable.decimals, cap)) {
+        return block(
+          `${decoded.method} of $${baseUnitsToNumber(decoded.amount, stable.decimals)} exceeds MAX_TRADE_USD $${cap}.`
+        );
+      }
+      return allow(undefined, `${decoded.method} to allowlisted recipient`);
+    }
+    case "approve": {
+      const reason = checkApprovalAmount(target, decoded.spender, decoded.amount);
+      return reason ? block(`${decoded.method}: ${reason}`) : allow(undefined, `${decoded.method} bounded`);
+    }
+    case "approval-for-all": {
+      if (decoded.approved && !isAllowedDestination(decoded.operator)) {
+        return block(`setApprovalForAll operator ${decoded.operator} is not in ALLOWED_ADDRESSES.`);
+      }
+      return allow(undefined, decoded.approved ? "setApprovalForAll to allowlisted operator" : "revoke setApprovalForAll");
+    }
+    case "nft-transfer": {
+      if (!isAllowedDestination(decoded.recipient)) {
+        return block(`${decoded.method} recipient ${decoded.recipient} is not in ALLOWED_ADDRESSES.`);
+      }
+      return allow(undefined, `${decoded.method} to allowlisted recipient`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Guard primitives
+// ---------------------------------------------------------------------------
+
+type Args = Record<string, any>;
+type Decision =
+  | { allow: true; args?: Args; note?: string; afterCall?: (output: unknown) => void }
+  | { allow: false; reason: string };
+
+export interface GuardrailOptions {
+  /** Optional total wallet value in USD; enables MAX_POSITION_PCT checks when available. */
+  getWalletValueUsd?: () => Promise<number | undefined> | number | undefined;
+}
+
+type ToolGuard = (args: Args, options: GuardrailOptions) => Decision | Promise<Decision>;
+
+const allow = (args?: Args, note?: string): Decision => ({ allow: true, args, note });
+const block = (reason: string): Decision => ({ allow: false, reason });
+
+/** An exact USD-denominated amount: `units` at `decimals` (1 USD = 10^decimals units). */
+type UsdAmount = { units: bigint; decimals: number };
+
+/** Parse a human USD amount ("$50", "50.5", 50) exactly. 18 decimals unless the asset has fewer. */
+function parseUsdAmount(value: unknown, decimals = 18): UsdAmount | null {
+  const text = typeof value === "string" ? value.trim().replace(/^\$/, "") : value;
+  const units = toBaseUnits(text, decimals);
+  return units === null ? null : { units, decimals };
+}
+
+function requireDestination(label: string, destination: unknown): Decision | null {
+  if (typeof destination !== "string" || !destination.trim()) {
+    return block(`${label} is missing.`);
+  }
+  if (!isAllowedDestination(destination)) {
+    return block(
+      `${label} ${destination} is not in ALLOWED_ADDRESSES. Arbitrary destinations are blocked; the operator must allowlist it.`
+    );
+  }
+  return null;
+}
+
+async function checkUsdSize(
+  amount: UsdAmount | null,
+  label: string,
+  options: GuardrailOptions
+): Promise<Decision | null> {
+  if (amount === null) return block(`Could not parse ${label} as a number; refusing to execute.`);
+  // Exact bigint comparisons; `usd` is only for messages.
+  const usd = baseUnitsToNumber(amount.units, amount.decimals);
+  const cap = getMaxTradeUsd();
+  if (cap !== null && exceedsUsdCap(amount.units, amount.decimals, cap)) {
+    return block(`${label} $${usd} exceeds MAX_TRADE_USD $${cap}.`);
+  }
+  if (options.getWalletValueUsd) {
+    let walletValue: number | undefined;
+    try {
+      walletValue = await options.getWalletValueUsd();
+    } catch {
+      walletValue = undefined;
+    }
+    if (typeof walletValue === "number" && Number.isFinite(walletValue) && walletValue > 0) {
+      if (exceedsUsdCap(amount.units, amount.decimals, (walletValue * MAX_POSITION_PCT) / 100)) {
+        return block(
+          `${label} $${usd} is ${((usd / walletValue) * 100).toFixed(2)}% of wallet value $${walletValue.toFixed(2)}, above MAX_POSITION_PCT ${MAX_POSITION_PCT}%.`
+        );
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Size check for a human-readable token amount. Known stablecoins (by symbol OR address) are
+ * converted with their real decimals, exactly like the protocol tools do, and capped in USD.
+ * Non-stablecoin inputs have no USD cap (the scaffold does not price tokens).
+ */
+async function checkHumanTokenAmount(
+  token: unknown,
+  amount: unknown,
+  label: string,
+  options: GuardrailOptions
+): Promise<Decision | null> {
+  const known = resolveKnownToken(token);
+  if (!known) return null;
+  const baseUnits = toBaseUnits(amount, known.decimals);
+  if (baseUnits === null) return block(`Could not parse ${label} "${amount}" as a decimal amount.`);
+  if (isUnlimitedApproval(baseUnits)) return block(`${label} is unbounded.`);
+  if (!known.stable) return null;
+  return checkUsdSize({ units: baseUnits, decimals: known.decimals }, label, options);
+}
+
+/** Size check for an amount already expressed in token base units. */
+async function checkBaseUnitTokenAmount(
+  token: unknown,
+  amountBaseUnits: unknown,
+  label: string,
+  options: GuardrailOptions
+): Promise<Decision | null> {
+  const raw = parseBigInt(amountBaseUnits);
+  if (raw === null) return block(`${label} must be an integer base-unit string.`);
+  const stable = knownStable(token);
+  if (!stable) return null;
+  return checkUsdSize({ units: raw, decimals: stable.decimals }, label, options);
+}
+
+/** Clamp a slippage input (percent) to SLIPPAGE_PCT; fills in the limit when omitted. */
+function clampSlippagePct(args: Args, key: string): Args {
+  const provided = typeof args[key] === "number" ? args[key] : null;
+  if (provided === null || provided > SLIPPAGE_PCT || provided < 0) {
+    if (provided !== null) {
+      console.warn(`[guardrail] Clamping ${key} ${provided}% to SLIPPAGE_PCT ${SLIPPAGE_PCT}%.`);
+    }
+    return { ...args, [key]: SLIPPAGE_PCT };
+  }
+  return args;
+}
+
+function clampSlippageBps(args: Args, key: string): Args {
+  const limitBps = Math.floor(SLIPPAGE_PCT * 100);
+  const provided = typeof args[key] === "number" ? args[key] : null;
+  if (provided === null || provided > limitBps || provided < 0) {
+    if (provided !== null) {
+      console.warn(`[guardrail] Clamping ${key} ${provided}bps to SLIPPAGE_PCT ${limitBps}bps.`);
+    }
+    return { ...args, [key]: limitBps };
+  }
+  return args;
+}
+
+function hasOutboundIntent(text: string): boolean {
+  return /\b(send|sends|sending|transfer|transfers|withdraw|withdrawal|bridge|pay|tip|donate|approve|approval|allowance|drain|sweep|move|moves|moving)\b/i.test(text);
+}
+
+function collectDestinations(text: string): string[] {
+  return [...(text.match(ADDRESS_SCAN_RE) ?? []), ...(text.match(ENS_SCAN_RE) ?? [])];
+}
+
+/** Best-effort USD amount extraction from natural language ("$50", "50 usdc"). */
+function extractUsdAmounts(text: string): Array<UsdAmount | null> {
+  const amounts: Array<UsdAmount | null> = [];
+  const patterns = [
+    /\$\s*([\d,]+(?:\.\d+)?)/g,
+    /([\d,]+(?:\.\d+)?)\s*(?:usd|usdc|usdbc|dai|dollars?)\b/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      amounts.push(parseUsdAmount(match[1]));
+    }
+  }
+  return amounts;
+}
+
+// ---------------------------------------------------------------------------
+// Sponge plans: steps are validated with the same policies as the equivalent direct tools,
+// and only plan IDs submitted (and accepted) by this process can be approved.
+// ---------------------------------------------------------------------------
+
+const PLAN_STEP_POLICIES: Record<string, { tool: string; params: string[] }> = {
+  swap: { tool: "sponge_swap_base", params: ["tokenIn", "tokenOut", "amountIn", "slippagePct"] },
+  transfer: { tool: "sponge_transfer_evm", params: ["token", "toAddress", "amount"] },
+};
+
+const submittedPlanIds = new Set<string>();
+
+function extractPlanId(output: unknown): string | null {
+  const text = Array.isArray(output) ? output[0] : output;
+  if (typeof text !== "string") return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed?.success === false) return null;
+    const plan = parsed?.plan ?? parsed;
+    const id = plan?.planId ?? plan?.id ?? plan?.plan_id ?? plan?.plan?.id ?? plan?.data?.planId ?? plan?.data?.id;
+    return typeof id === "string" || typeof id === "number" ? String(id) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function checkSpongePlan(args: Args, options: GuardrailOptions): Promise<Decision> {
+  const steps: unknown[] = Array.isArray(args.steps) ? args.steps : [];
+  if (steps.length === 0) return block("Plan has no steps.");
+  const checkedSteps: Args[] = [];
+  for (const [index, rawStep] of steps.entries()) {
+    const label = `Plan step ${index + 1}`;
+    const step = (rawStep ?? {}) as Args;
+    const action = String(step.action ?? "").trim().toLowerCase();
+    const policy = hasOwn(PLAN_STEP_POLICIES, action) ? PLAN_STEP_POLICIES[action] : undefined;
+    if (!policy) {
+      return block(
+        `${label} action "${step.action}" is not supported. Allowed plan actions: ${Object.keys(PLAN_STEP_POLICIES).join(", ")}.`
+      );
+    }
+    const params: Args = step.params && typeof step.params === "object" ? { ...step.params } : {};
+    const unknownParams = Object.keys(params).filter(
+      (key) => !policy.params.includes(key) && key !== "chain"
+    );
+    if (unknownParams.length > 0) {
+      return block(`${label} (${action}) has unsupported params: ${unknownParams.join(", ")}.`);
+    }
+    if ("chain" in params && String(params.chain).toLowerCase() !== "base") {
+      return block(`${label} (${action}) chain must be "base".`);
+    }
+    const { chain, ...toolArgs } = params;
+    const decision = await TOOL_GUARDS[policy.tool](toolArgs, options);
+    if (!decision.allow) return block(`${label} (${action}): ${decision.reason}`);
+    const checkedParams = { ...(decision.args ?? toolArgs), ...(chain !== undefined ? { chain } : {}) };
+    checkedSteps.push({ ...step, params: checkedParams });
+  }
+  return {
+    allow: true,
+    args: { ...args, steps: checkedSteps },
+    note: `${checkedSteps.length} plan step(s) checked`,
+    afterCall: (output) => {
+      const planId = extractPlanId(output);
+      if (planId) {
+        submittedPlanIds.add(planId);
+      } else {
+        console.warn("[guardrail] sponge_submit_plan response had no recognizable plan ID; it cannot be approved.");
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tool classification (default-deny)
+// ---------------------------------------------------------------------------
+
+/** Tools from the generated templates that only read data. They are not wrapped. */
+export const READ_ONLY_TOOLS = new Set<string>([
+  // CDP server wallet
+  "cdp_wallet_overview",
+  "cdp_list_token_balances",
+  "cdp_contract_read",
+  "verify_transaction",
+  // Protocol quotes / views
+  "uniswap_get_quote",
+  "aerodrome_get_quote",
+  "avantis_list_pairs",
+  "avantis_get_account_overview",
+  "avantis_get_positions",
+  "avantis_check_usdc_approval",
+  "virtuals_browse_agents",
+  "virtuals_job_status",
+  "virtuals_active_jobs",
+  "virtuals_wallet_balance",
+  // Wallet views
+  "bankr_get_balances",
+  "sponge_get_balances",
+  "sponge_discover_services",
+  "sponge_service_details",
+]);
+
+/**
+ * Paid-data tools that go through the shared x402 client (src/tools/x402/client.ts). Each payment
+ * is capped there by MAX_X402_PAYMENT_USD and limited to the tools' fixed hosts, so the tools
+ * themselves are allowed unwrapped.
+ */
+export const X402_PAID_DATA_TOOLS = new Set<string>([
+  "coingecko_get_price",
+  "coingecko_get_market_chart",
+  "coingecko_search",
+  "coinmarketcap_get_quote",
+  "coinmarketcap_listing_latest",
+  "coinmarketcap_dex_search",
+  "nansen_token_screener",
+  "nansen_address_balances",
+  "nansen_smart_money_holdings",
+  "nansen_token_ohlcv",
+  "nansen_search",
+  "alchemy_get_token_balances",
+  "alchemy_get_token_metadata",
+  "alchemy_get_asset_transfers",
+  "alchemy_get_nfts_for_owner",
+  "alchemy_get_token_prices_by_symbol",
+  "alchemy_get_portfolio_tokens_by_address",
+]);
+
+/**
+ * Tool objects registered as read-only by a generated integration whose server has no access to
+ * the wallet (e.g. the Nansen analytics MCP server). Tracked by object identity, not by name.
+ */
+const readOnlyToolObjects = new WeakSet<object>();
+
+export function markReadOnlyTools(tools: any[], source: string): void {
+  for (const tool of tools) {
+    if (tool && typeof tool === "object") readOnlyToolObjects.add(tool);
+  }
+  console.log(`[guardrail] Classified ${tools.length} ${source} tool(s) as read-only.`);
+}
+
+const logOnly: ToolGuard = () => allow(undefined, "fixed protocol target");
+
+const TOOL_GUARDS: Record<string, ToolGuard> = {
+  // --- CDP server wallet -----------------------------------------------------
+  cdp_send_transaction: (args) => checkRawCall(args.to, args.data, args.valueWei, "Destination"),
+  cdp_contract_write: (args) => checkRawCall(args.contract, args.data, args.valueWei, "Contract"),
+  cdp_erc20_approve: (args) => {
+    const amount = parseBigInt(args.amountBaseUnits);
+    if (amount === null) return block("amountBaseUnits must be an integer string.");
+    const reason = checkApprovalAmount(args.token, args.spender, amount);
+    return reason ? block(reason) : allow();
+  },
+  cdp_transfer: async (args, options) => {
+    const destinationBlock = requireDestination("Destination", args.to);
+    if (destinationBlock) return destinationBlock;
+    const sizeBlock = await checkBaseUnitTokenAmount(args.token, args.amountBaseUnits, "Transfer amount", options);
+    return sizeBlock ?? allow();
+  },
+  cdp_swap: async (args, options) => {
+    const sizeBlock = await checkBaseUnitTokenAmount(args.fromToken, args.fromAmountBaseUnits, "Swap input", options);
+    if (sizeBlock) return sizeBlock;
+    return allow(clampSlippageBps(args, "slippageBps"));
+  },
+
+  // --- Uniswap / Aerodrome (fixed routers) -----------------------------------
+  uniswap_swap: async (args, options) => {
+    const sizeBlock = await checkHumanTokenAmount(args.tokenIn, args.amountIn, "Swap input", options);
+    if (sizeBlock) return sizeBlock;
+    return allow(clampSlippagePct(args, "slippagePct"));
+  },
+  uniswap_check_approval: async (args, options) => {
+    if (!args.executeIfNeeded) return allow(undefined, "check only");
+    // The final encoded approval is re-checked inside the tool (checkApprovalAmount).
+    const sizeBlock = await checkHumanTokenAmount(args.token, args.amountIn, "Approval amount", options);
+    return sizeBlock ?? allow();
+  },
+  aerodrome_swap: async (args, options) => {
+    const sizeBlock = await checkHumanTokenAmount(args.tokenIn, args.amountIn, "Swap input", options);
+    if (sizeBlock) return sizeBlock;
+    return allow(clampSlippagePct(args, "slippagePct"));
+  },
+  aerodrome_check_approval: async (args, options) => {
+    if (!args.executeIfNeeded) return allow(undefined, "check only");
+    // The final encoded approval is re-checked by wallet.approveErc20 (assertApprovalAllowed).
+    const sizeBlock = await checkHumanTokenAmount(args.token, args.amountIn, "Approval amount", options);
+    return sizeBlock ?? allow();
+  },
+
+  // --- Avantis (fixed Trading/TradingStorage contracts) -----------------------
+  avantis_approve_usdc: (args) => {
+    const amount = toBaseUnits(args.amountUsdc, 6);
+    if (amount === null) return block("amountUsdc must be a decimal number.");
+    const reason = checkApprovalAmount("USDC", "0x8a311d7048c35985aa31c131b9a13e03a5f7422d", amount);
+    return reason ? block(reason) : allow();
+  },
+  avantis_open_trade: async (args, options) => {
+    const sizeBlock = await checkUsdSize(parseUsdAmount(args.collateralUsdc, 6), "Collateral", options);
+    if (sizeBlock) return sizeBlock;
+    return allow(clampSlippagePct(args, "slippagePct"));
+  },
+  avantis_update_margin: async (args, options) => {
+    if (args.direction === "deposit") {
+      const sizeBlock = await checkUsdSize(
+        parseUsdAmount(args.collateralChangeUsdc, 6),
+        "Margin deposit",
+        options
+      );
+      if (sizeBlock) return sizeBlock;
+    }
+    return allow();
+  },
+  avantis_close_trade: logOnly,
+  avantis_update_tp_sl: logOnly,
+  avantis_cancel_limit_order: logOnly,
+
+  // --- Virtuals ACP (pays arbitrary helper agents) ----------------------------
+  virtuals_create_job: (args) => requireDestination("Helper agent wallet", args.wallet) ?? allow(),
+
+  // --- Bankr (natural-language execution; blocked unless BANKR_ALLOW_EXECUTE=true) ---
+  bankr_execute: async (args, options) => {
+    if (!allowBankrExecute()) {
+      return block(
+        "bankr_execute takes free-text prompts that guardrails cannot reliably inspect, so it is disabled. " +
+          "The operator can set BANKR_ALLOW_EXECUTE=true to enable it (unrestricted; only best-effort checks apply)."
+      );
+    }
+    const prompt = String(args.prompt ?? "");
+    const destinations = collectDestinations(prompt);
+    if (hasOutboundIntent(prompt) || destinations.length > 0) {
+      if (hasOutboundIntent(prompt) && destinations.length === 0) {
+        return block(
+          "Outbound transfers/approvals via Bankr must name an explicit allowlisted address."
+        );
+      }
+      const notAllowed = destinations.filter((dest) => !isAllowedDestination(dest));
+      if (notAllowed.length > 0) {
+        return block(`Destination(s) ${notAllowed.join(", ")} not in ALLOWED_ADDRESSES.`);
+      }
+    }
+    for (const usd of extractUsdAmounts(prompt)) {
+      const sizeBlock = await checkUsdSize(usd, "Bankr trade amount", options);
+      if (sizeBlock) return sizeBlock;
+    }
+    return allow(undefined, "BANKR_ALLOW_EXECUTE=true (best-effort checks only)");
+  },
+
+  // --- Sponge -----------------------------------------------------------------
+  sponge_transfer_evm: async (args, options) => {
+    const destinationBlock = requireDestination("Recipient", args.toAddress);
+    if (destinationBlock) return destinationBlock;
+    const sizeBlock = await checkHumanTokenAmount(args.token, args.amount, "Transfer amount", options);
+    return sizeBlock ?? allow();
+  },
+  sponge_swap_base: async (args, options) => {
+    const sizeBlock = await checkHumanTokenAmount(args.tokenIn, args.amountIn, "Swap input", options);
+    if (sizeBlock) return sizeBlock;
+    return allow(clampSlippagePct(args, "slippagePct"));
+  },
+  sponge_polymarket: async (args, options) => {
+    const action = String(args.action ?? "");
+    if (/^(get|list|search|view|fetch)/i.test(action) || args.amount == null) return allow();
+    const sizeBlock = await checkUsdSize(parseUsdAmount(args.amount), "Polymarket amount", options);
+    return sizeBlock ?? allow();
+  },
+  sponge_hyperliquid: async (args, options) => {
+    const action = String(args.action ?? "");
+    if (!/^open/i.test(action)) return allow();
+    const sizeBlock = await checkUsdSize(parseUsdAmount(args.size), "Hyperliquid position size", options);
+    return sizeBlock ?? allow();
+  },
+  sponge_x402_fetch: (args) => {
+    let host = "";
+    try {
+      host = new URL(String(args.url)).hostname.toLowerCase();
+    } catch {
+      return block("Invalid URL.");
+    }
+    if (!getAllowedX402Hosts().has(host)) {
+      return block(`Paid x402 host ${host} is not in ALLOWED_X402_HOSTS.`);
+    }
+    return allow();
+  },
+  sponge_submit_plan: (args, options) => checkSpongePlan(args, options),
+  sponge_approve_plan: (args) => {
+    const planId = String(args.planId ?? "").trim();
+    if (!planId || !submittedPlanIds.has(planId)) {
+      return block(
+        `Plan ${planId || "(missing)"} was not submitted and checked by this agent via sponge_submit_plan.`
+      );
+    }
+    submittedPlanIds.delete(planId);
+    return allow(undefined, "plan was checked at submit");
+  },
+};
+
+type Classification =
+  | { kind: "read-only"; reason: string }
+  | { kind: "guarded"; guard: ToolGuard }
+  | { kind: "override" }
+  | { kind: "blocked" };
+
+export function classifyTool(tool: any): Classification {
+  const name = String(tool?.name ?? "");
+  if (hasOwn(TOOL_GUARDS, name)) return { kind: "guarded", guard: TOOL_GUARDS[name] };
+  if (READ_ONLY_TOOLS.has(name)) return { kind: "read-only", reason: "read-only" };
+  if (X402_PAID_DATA_TOOLS.has(name)) return { kind: "read-only", reason: "x402 data (payment capped)" };
+  if (tool && typeof tool === "object" && readOnlyToolObjects.has(tool)) {
+    return { kind: "read-only", reason: "read-only integration" };
+  }
+  if (getAllowedToolOverrides().has(name.toLowerCase())) return { kind: "override" };
+  return { kind: "blocked" };
+}
+
+function blockedOutput(tool: any, toolName: string, reason: string): unknown {
+  const message = errorResult(`[guardrail] Blocked ${toolName}: ${reason}`, { guardrail: true });
+  return tool?.responseFormat === "content_and_artifact" ? [message, undefined] : message;
+}
+
+const unclassifiedGuard: ToolGuard = () =>
+  block(
+    "this tool has no guardrail policy and is not classified as read-only (default-deny). " +
+      "The operator can allow it via GUARDRAIL_ALLOW_TOOLS."
+  );
+
+export function wrapWithGuardrails(tools: any[], options: GuardrailOptions = {}): any[] {
+  const wrapped: any[] = [];
+  for (const tool of tools) {
+    const toolName = String(tool?.name ?? "");
+    const classification = classifyTool(tool);
+    if (classification.kind === "read-only") {
+      wrapped.push(tool); // read-only: unchanged
+      continue;
+    }
+    if (classification.kind === "override") {
+      console.warn(`[guardrail] ${toolName} runs without guardrail checks (GUARDRAIL_ALLOW_TOOLS).`);
+      wrapped.push(tool);
+      continue;
+    }
+    const guard = classification.kind === "guarded" ? classification.guard : unclassifiedGuard;
+    if (typeof tool?._call !== "function") {
+      console.warn(`[guardrail] Dropping ${toolName}: cannot attach guardrail to this tool type.`);
+      continue;
+    }
+
+    if (tool.__guardrailWrapped) {
+      wrapped.push(tool); // already guarded; never apply the check twice
+      continue;
+    }
+
+    // Guard the underlying execution. DynamicTool/DynamicStructuredTool (all generated and MCP
+    // tools) execute via `func`, so `func` itself is replaced with the guarded version and `_call`
+    // delegates to it: `.invoke`, `._call` and a direct `.func(...)` all run the check exactly once.
+    // Tools without `func` are guarded at `_call`.
+    const hasFunc = typeof tool.func === "function";
+    const execute: (input: unknown, ...rest: unknown[]) => Promise<unknown> = hasFunc
+      ? tool.func.bind(tool)
+      : tool._call.bind(tool);
+    const guarded = async (input: unknown, ...rest: unknown[]) => {
+      const args: Args = input && typeof input === "object" ? (input as Args) : {};
+      let decision: Decision;
+      try {
+        decision = await guard(args, options);
+      } catch (error) {
+        decision = block(`guardrail check failed: ${(error as Error)?.message ?? String(error)}`);
+      }
+      if (!decision.allow) {
+        console.warn(`[guardrail] Blocked ${toolName}: ${decision.reason}`);
+        return blockedOutput(tool, toolName, decision.reason);
+      }
+      console.log(`[guardrail] Allowed ${toolName}${decision.note ? ` (${decision.note})` : ""}`);
+      const output = await execute(decision.args ?? input, ...rest);
+      decision.afterCall?.(output);
+      return output;
+    };
+    if (hasFunc) {
+      tool.func = guarded;
+      tool._call = (input: unknown, ...rest: unknown[]) => tool.func(input, ...rest);
+    } else {
+      tool._call = guarded;
+    }
+    tool.__guardrailWrapped = true;
+    wrapped.push(tool);
+  }
+  return wrapped;
 }
 
 export const guardrailConfig = {
@@ -61,4 +1099,16 @@ export const guardrailConfig = {
   slippagePct: SLIPPAGE_PCT,
   stopLossPct: STOP_LOSS_PCT,
   maxPositionPct: MAX_POSITION_PCT,
+  get maxTradeUsd() {
+    return getMaxTradeUsd();
+  },
+  get allowedAddresses() {
+    return [...getAllowedAddresses()];
+  },
+  get allowArbitraryCalldata() {
+    return allowArbitraryCalldata();
+  },
+  get bankrAllowExecute() {
+    return allowBankrExecute();
+  },
 };

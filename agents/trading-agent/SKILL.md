@@ -68,6 +68,9 @@ Default posture:
 - `test mode` is live on Base mainnet with smaller recommended balances and faster cadence. It is validation mode, not simulation.
 - `self-updating` periodically re-evaluates strategy instructions. Use it only when adaptive behavior is desired.
 - Guardrails start with slippage, stop-loss, and max position size; they can be changed later in `src/guardrails.ts`.
+- With `self-updating`, model-proposed strategies are written to `prompts/strategy.proposed.md` for review. They become the system prompt only if the operator sets `AUTO_APPLY_STRATEGY_UPDATES=true`.
+- `src/guardrails.ts` classifies every tool in code (default-deny): read-only tools, x402 paid-data tools (payments capped by `MAX_X402_PAYMENT_USD`, default 0.10), and Nansen MCP tools pass through; tools with a built-in policy are checked on every call; anything else (MCP/custom tools) is blocked unless listed in `GUARDRAIL_ALLOW_TOOLS`. Arbitrary-destination calls (raw transactions, contract writes, transfers, Sponge transfers/plan steps, Bankr prompts, Virtuals jobs) are blocked unless the destination is in `ALLOWED_ADDRESSES`, which is empty by default. Raw-call calldata must decode to a token transfer/approval whose effect passes the same checks (`ALLOW_ARBITRARY_CALLDATA=true` opts out and grants unrestricted execution on allowlisted targets). Unlimited approvals (>= 2^255) and approvals to unknown spenders are rejected on every approval path. Slippage inputs are clamped to `SLIPPAGE_PCT`. USD/stablecoin-denominated inputs are capped by `MAX_TRADE_USD` (default 100) and, when the wallet reports a USD total, by `MAX_POSITION_PCT`. `bankr_execute` needs `BANKR_ALLOW_EXECUTE=true`. `sponge_approve_plan` only approves plans this process submitted and the guardrails accepted. Blocked calls return a `[guardrail]` error to the model.
+- Not enforced: caps on non-stablecoin trade sizes, automatic stop-loss exits, leverage, and tools the operator lists in `GUARDRAIL_ALLOW_TOOLS`. With `BANKR_ALLOW_EXECUTE=true`, Bankr checks are best-effort. The operator can loosen any guardrail through env vars or by editing `src/guardrails.ts`.
 
 ## Interactive Workflow
 
@@ -145,7 +148,9 @@ Tell the user to review the generated:
 
 - `.env` for provider and wallet secrets
 - `prompts/strategy.md` for strategy wording
-- `src/guardrails.ts` for runtime risk controls
+- `src/guardrails.ts` for runtime risk controls (code-enforced allowlist, approval, slippage, and size checks)
+- `.env` guardrail settings: `ALLOWED_ADDRESSES`, `MAX_TRADE_USD`, `SLIPPAGE_PCT`, `MAX_POSITION_PCT`, `GUARDRAIL_ALLOW_TOOLS`, `ALLOW_ARBITRARY_CALLDATA`, `BANKR_ALLOW_EXECUTE`, `MAX_X402_PAYMENT_USD`, `ALLOWED_X402_HOSTS`, and `AUTO_APPLY_STRATEGY_UPDATES` for self-updating agents
+- `prompts/strategy.proposed.md`, if present, before applying any agent-proposed strategy change
 - `src/tools/*` for capability-specific changes
 
 The scaffold prints the generated project path to stdout.

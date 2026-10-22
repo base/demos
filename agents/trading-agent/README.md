@@ -96,6 +96,23 @@ These three choices control behavior more than most people expect:
 - `test mode` is still live on Base mainnet. It is for low-stakes validation, not simulation.
 - `self-updating` adds periodic strategy re-evaluation. That is useful for adaptive agents, but it makes behavior less static and harder to diff over time.
 - `guardrails` are created during critique and can be edited later in `src/guardrails.ts`. The initial defaults are slippage, stop-loss, and max position size.
+- `self-updating` does not rewrite the system prompt on its own by default: proposals go to `prompts/strategy.proposed.md` for review unless the operator sets `AUTO_APPLY_STRATEGY_UPDATES=true`.
+
+#### What the generated guardrails enforce
+
+`src/guardrails.ts` classifies every tool (default-deny). Built-in read-only tools, x402 paid-data tools (payments capped at the shared x402 client), and Nansen MCP analytics tools pass through unwrapped. Tools with a built-in policy are checked on every call. Every other tool, including MCP and custom tools, is blocked unless listed in `GUARDRAIL_ALLOW_TOOLS`. A blocked call returns a JSON error to the model and logs `[guardrail] Blocked ...`. The agent loop keeps running.
+
+- Arbitrary-destination tools (`cdp_send_transaction`, `cdp_contract_write`, `cdp_transfer`, `sponge_transfer_evm`, `virtuals_create_job`, Sponge plan transfer steps, outbound `bankr_execute` prompts) are blocked unless the destination is in `ALLOWED_ADDRESSES` (comma-separated, case-insensitive, empty by default).
+- Raw calls (`cdp_send_transaction`, `cdp_contract_write`) must carry calldata that decodes to an ERC-20 transfer/approval or ERC-721/1155 transfer/`setApprovalForAll`; the decoded recipient, spender, operator, and amount are checked like the dedicated tools. Unrecognized calldata, multicall/nested calls, and permit/Permit2 are rejected unless `ALLOW_ARBITRARY_CALLDATA=true`, which grants unrestricted execution on allowlisted targets.
+- Every approval path (`cdp_erc20_approve`, protocol approval helpers, Uniswap API approvals, decoded calldata) checks the final amount: unlimited (>= 2^255) is rejected, stablecoin approvals are capped by `MAX_TRADE_USD`, and the spender must be a router hardcoded by the protocol tools or allowlisted. Unlimited approvals returned by the Uniswap API are re-encoded as exact-amount approvals.
+- Fixed-router protocol tools (Uniswap, Aerodrome, Avantis, `cdp_swap`) keep working without an allowlist. Their slippage inputs are clamped to `SLIPPAGE_PCT`.
+- `MAX_TRADE_USD` (default 100, `unlimited` disables) caps USD/stablecoin-denominated inputs: stablecoin swap, transfer and approval amounts (by symbol or address, using the same token decimals as the protocol tools), Avantis collateral, Sponge Hyperliquid size and Polymarket amount, and `$`/USDC amounts in Bankr prompts. `MAX_POSITION_PCT` also applies to those inputs when the wallet reports a USD total (Bankr, Sponge).
+- `sponge_submit_plan` accepts only `swap`/`transfer` steps with known params, checked like the direct tools; `sponge_approve_plan` only approves plan IDs this process submitted and accepted. `sponge_x402_fetch` only pays hosts in `ALLOWED_X402_HOSTS`.
+- `bankr_execute` is blocked unless `BANKR_ALLOW_EXECUTE=true` (then unrestricted apart from best-effort prompt checks).
+- x402 payments from the shared client are limited to the built-in data hosts (plus `ALLOWED_X402_HOSTS`), USDC on Base, and `MAX_X402_PAYMENT_USD` (default 0.10) per request.
+- Not enforced: USD caps on non-stablecoin inputs (the scaffold does not price tokens), automatic stop-loss exits, leverage caps, and anything a `GUARDRAIL_ALLOW_TOOLS` tool does.
+
+The operator can loosen any of these via env vars or by editing `src/guardrails.ts`. Each change widens what an agent acting on untrusted tool output can do with the wallet.
 
 If you want the first run to be predictable, disable `self-updating`, keep tool selection narrow, and tighten the strategy before generation instead of after.
 
@@ -107,7 +124,7 @@ The scaffold is meant to be a starting point, not a sealed artifact.
 - Edit `src/guardrails.ts` when your risk controls need to diverge from the generated defaults.
 - Edit `.env` when you add runtime credentials or switch providers.
 - Edit `src/tools/*` when a built-in or custom integration needs deeper logic changes.
-- If `self-updating` is enabled, the generated project also includes `strategy-history.json` to persist strategy revisions over time.
+- If `self-updating` is enabled, the generated project also includes `strategy-history.json` to persist applied strategy revisions over time, and writes unapplied proposals to `prompts/strategy.proposed.md`.
 
 After scaffolding, the CLI prints the generated project path to stdout.
 

@@ -8,6 +8,7 @@ import {
   type Address,
 } from "viem";
 import { okResult, errorResult, normalizeError } from "../../tool-result.js";
+import { checkApprovalAmount, resolveKnownToken, KNOWN_TOKEN_SYMBOLS } from "../../guardrails.js";
 
 // Aerodrome Router on Base
 const AERODROME_ROUTER = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43" as Address;
@@ -20,20 +21,28 @@ const ROUTER_ABI = parseAbi([
 
 const ERC20_ABI = parseAbi([
   "function allowance(address owner, address spender) view returns (uint256)",
+  "function decimals() view returns (uint8)",
 ]);
 
-const TOKENS: Record<string, { address: Address; decimals: number }> = {
-  WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
-  USDC: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
-  USDbC: { address: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", decimals: 6 },
-  DAI: { address: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", decimals: 18 },
-};
+type ResolvedToken = { address: Address; decimals: number };
 
-function resolveToken(symbol: string): { address: Address; decimals: number } | null {
-  const token = TOKENS[symbol.toUpperCase()];
-  if (token) return token;
-  if (/^0x[0-9a-fA-F]{40}$/.test(symbol)) return { address: symbol as Address, decimals: 18 };
-  return null;
+/**
+ * Resolve a token symbol or address. Known tokens (shared with src/guardrails.ts) use their real
+ * decimals; other addresses read decimals() on-chain. Never assumes a default decimals value.
+ */
+async function resolveToken(wallet: any, symbol: string): Promise<ResolvedToken | null> {
+  const known = resolveKnownToken(symbol);
+  if (known) return { address: known.address as Address, decimals: known.decimals };
+  if (!/^0x[0-9a-fA-F]{40}$/.test(symbol)) return null;
+  if (!wallet?.publicClient) {
+    throw new Error(`Cannot determine decimals for ${symbol}: wallet adapter has no public client.`);
+  }
+  const decimals = await wallet.publicClient.readContract({
+    address: symbol as Address,
+    abi: ERC20_ABI,
+    functionName: "decimals",
+  });
+  return { address: symbol as Address, decimals: Number(decimals) };
 }
 
 async function quoteRoute(
@@ -73,10 +82,10 @@ export function getAerodromeTools(wallet: any) {
       func: async ({ tokenIn, tokenOut, amountIn }) => {
         try {
           if (!wallet?.publicClient) return errorResult("Wallet adapter does not expose a public client.");
-          const inToken = resolveToken(tokenIn);
-          const outToken = resolveToken(tokenOut);
+          const inToken = await resolveToken(wallet, tokenIn);
+          const outToken = await resolveToken(wallet, tokenOut);
           if (!inToken || !outToken) {
-            return errorResult(`Unknown token. Available: ${Object.keys(TOKENS).join(", ")}`);
+            return errorResult(`Unknown token. Available: ${KNOWN_TOKEN_SYMBOLS.join(", ")}`);
           }
 
           const amountInRaw = parseUnits(amountIn, inToken.decimals);
@@ -122,9 +131,9 @@ export function getAerodromeTools(wallet: any) {
           if (!wallet?.publicClient || !wallet?.address) {
             return errorResult("Wallet adapter is missing address or public client.");
           }
-          const resolved = resolveToken(token);
+          const resolved = await resolveToken(wallet, token);
           if (!resolved) {
-            return errorResult(`Unknown token. Available: ${Object.keys(TOKENS).join(", ")}`);
+            return errorResult(`Unknown token. Available: ${KNOWN_TOKEN_SYMBOLS.join(", ")}`);
           }
           const required = parseUnits(amountIn, resolved.decimals);
           const current = await wallet.publicClient.readContract({
@@ -145,6 +154,14 @@ export function getAerodromeTools(wallet: any) {
           if (executeIfNeeded) {
             if (typeof wallet.approveErc20 !== "function") {
               return errorResult("Wallet adapter does not support direct ERC20 approvals.");
+            }
+            // Guardrail: check the final approval amount (unlimited threshold + MAX_TRADE_USD cap).
+            const approvalBlock = checkApprovalAmount(resolved.address, AERODROME_ROUTER, required);
+            if (approvalBlock) {
+              console.warn(`[guardrail] Blocked aerodrome_check_approval: ${approvalBlock}`);
+              return errorResult(`[guardrail] Blocked aerodrome_check_approval: ${approvalBlock}`, {
+                guardrail: true,
+              });
             }
             return JSON.stringify(
               await wallet.approveErc20({
@@ -182,10 +199,10 @@ export function getAerodromeTools(wallet: any) {
           if (!wallet?.publicClient || !wallet?.address || typeof wallet.executeTransaction !== "function") {
             return errorResult("Wallet adapter does not support Aerodrome execution.");
           }
-          const inToken = resolveToken(tokenIn);
-          const outToken = resolveToken(tokenOut);
+          const inToken = await resolveToken(wallet, tokenIn);
+          const outToken = await resolveToken(wallet, tokenOut);
           if (!inToken || !outToken) {
-            return errorResult(`Unknown token. Available: ${Object.keys(TOKENS).join(", ")}`);
+            return errorResult(`Unknown token. Available: ${KNOWN_TOKEN_SYMBOLS.join(", ")}`);
           }
 
           const amountInRaw = parseUnits(amountIn, inToken.decimals);

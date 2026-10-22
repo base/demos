@@ -14,6 +14,7 @@ import { writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { okResult, errorResult, normalizeError, isHexTxHash } from "./tool-result.js";
+import { assertApprovalAllowed } from "./guardrails.js";
 {{#if hasAnyX402}}
 import { initX402Client } from "./tools/x402/client.js";
 {{/if}}
@@ -249,10 +250,14 @@ export async function initWallet() {
     spender: `0x${string}`;
     amountBaseUnits: string;
   }): Promise<Record<string, unknown>> {
+    const amount = BigInt(params.amountBaseUnits);
+    // Guardrail: every approval path (cdp_erc20_approve and protocol tools) is checked on the
+    // final encoded amount: no unlimited approvals, known/allowlisted spenders, MAX_TRADE_USD cap.
+    assertApprovalAllowed(params.token, params.spender, amount);
     const data = encodeFunctionData({
       abi: ERC20_ABI,
       functionName: "approve",
-      args: [params.spender, BigInt(params.amountBaseUnits)],
+      args: [params.spender, amount],
     });
     return executeTransaction({ to: params.token, data });
   }

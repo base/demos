@@ -1,4 +1,5 @@
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
+import { markReadOnlyTools } from "../../guardrails.js";
 
 const NANSEN_MCP_URL = "https://mcp.nansen.ai/ra/mcp";
 
@@ -28,6 +29,8 @@ export async function getNansenMcpTools(): Promise<any[]> {
 
   try {
     const tools = await mcpClient.getTools();
+    // Nansen MCP is a remote analytics server; it has no access to this agent's wallet.
+    markReadOnlyTools(tools, "Nansen MCP");
     cachedTools = tools;
     console.log(`[Nansen MCP] Loaded ${tools.length} tools from ${NANSEN_MCP_URL}`);
     return tools;

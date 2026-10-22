@@ -113,6 +113,58 @@ The agent should never claim a trade succeeded unless it has a verified transact
   - Slippage tolerance: {{guardrails.slippagePct}}%
   - Stop-loss threshold: {{guardrails.stopLossPct}}%
   - Max position size: {{guardrails.maxPositionPct}}% of wallet
+  - Absolute per-trade cap: `MAX_TRADE_USD` (default $100)
+
+### What is enforced in code
+
+`src/guardrails.ts` classifies every tool before the agent sees it (default-deny). Built-in
+read-only tools{{#if hasAnyX402}} and the x402 paid-data tools (whose payments are capped, see below){{/if}}{{#if hasNansenMcp}} and the Nansen MCP analytics tools{{/if}} are
+not wrapped. Tools with a built-in policy are checked on every call. Every other tool, including
+MCP and custom tools, is blocked unless the operator lists it in `GUARDRAIL_ALLOW_TOOLS`. A
+blocked call returns a JSON error (`{"success":false,"error":"[guardrail] Blocked ..."}`) to
+the model and logs a `[guardrail] Blocked ...` line; the agent loop keeps running.
+
+- **Arbitrary destinations are blocked by default.** {{#if isCdpServerWallet}}`cdp_send_transaction`, `cdp_contract_write`, and `cdp_transfer`{{/if}}{{#if isSponge}}`sponge_transfer_evm` and transfer steps in `sponge_submit_plan`{{/if}}{{#if isBankr}}`bankr_execute` (when enabled) prompts with transfer/withdraw/approve/bridge intent{{/if}}{{#if hasVirtuals}}, plus `virtuals_create_job`,{{/if}} only run when the destination is in `ALLOWED_ADDRESSES` (comma-separated, case-insensitive; empty by default).
+{{#if isCdpServerWallet}}
+- **Raw calls are decoded.** Allowlisting a contract does not grant arbitrary execution on it. `cdp_send_transaction`/`cdp_contract_write` calldata must decode to ERC-20 `transfer`/`transferFrom`/`approve` or ERC-721/1155 `setApprovalForAll`/`safeTransferFrom`/`transferFrom`, and the decoded recipient/spender/operator and amount must pass the same policies as the dedicated tools (recipients and operators in `ALLOWED_ADDRESSES`; spenders allowlisted or a hardcoded protocol router; stablecoin amounts capped by `MAX_TRADE_USD` using the token's real decimals). Unrecognized calldata, multicall/nested calls, and permit/Permit2 calls are rejected. `increaseAllowance` is always rejected (even with `ALLOW_ARBITRARY_CALLDATA=true`); use `approve` with the exact amount. `ALLOW_ARBITRARY_CALLDATA=true` lifts this and grants **unrestricted execution authority** on allowlisted targets.
+- **Approvals.** Every approval path (`cdp_erc20_approve`, protocol approval helpers{{#if hasUniswap}}, approvals returned by the Uniswap API{{/if}}, and decoded approval calldata) checks the final encoded amount: unlimited (>= 2^255, including maxUint256) is rejected, stablecoin approvals are capped by `MAX_TRADE_USD`, and the spender must be a router hardcoded by the generated protocol tools or in `ALLOWED_ADDRESSES`{{#if hasUniswap}}. Unlimited Uniswap API approvals are re-encoded as exact-amount approvals before the check{{/if}}.
+- **Fixed-router protocol tools** ({{#if hasUniswap}}Uniswap, {{/if}}{{#if hasAerodrome}}Aerodrome, {{/if}}{{#if hasAvantis}}Avantis, {{/if}}`cdp_swap`) keep working without an allowlist.
+{{/if}}
+- **Slippage.** Slippage inputs on swap/perp tools are clamped to `SLIPPAGE_PCT`.
+- **Trade size.** `MAX_TRADE_USD` caps tool inputs that are USD/stablecoin-denominated (stablecoin swap/transfer amounts, whether the token is given by symbol or address{{#if hasAvantis}}, Avantis collateral, margin deposits and USDC approvals{{/if}}{{#if isSponge}}, Sponge Hyperliquid size and Polymarket amount{{/if}}{{#if isBankr}}, `$`/USDC amounts found in Bankr prompts{{/if}}). Token amounts are converted with the same token registry and decimals the protocol tools use. `MAX_POSITION_PCT` is also enforced for those inputs when the wallet adapter reports a USD total ({{#if isCdpServerWallet}}not available for the CDP wallet{{else}}Bankr/Sponge balances{{/if}}).
+{{#if isSponge}}
+- **Sponge plans.** `sponge_submit_plan` accepts only `swap` and `transfer` steps with known params; each step is checked with the same policy as `sponge_swap_base` / `sponge_transfer_evm`. `sponge_approve_plan` only approves plan IDs that this agent process submitted and the guardrails accepted.
+- **Paid proxy fetches.** `sponge_x402_fetch` only pays hosts listed in `ALLOWED_X402_HOSTS`.
+{{/if}}
+{{#if isBankr}}
+- **Bankr execution is disabled by default.** `bankr_execute` is blocked unless `BANKR_ALLOW_EXECUTE=true`. When enabled it is effectively unrestricted; only best-effort prompt checks apply. `bankr_get_balances` stays available.
+{{/if}}
+{{#if hasAnyX402}}
+- **x402 payments.** The shared x402 client only pays the built-in data hosts (plus `ALLOWED_X402_HOSTS`), only in USDC on Base, and at most `MAX_X402_PAYMENT_USD` (default 0.10) per request. Redirects are never followed (any 3xx is an error), so an allowed host cannot forward a request or payment elsewhere.
+{{/if}}
+{{#if hasAgentcashMcp}}
+- **AgentCash MCP tools** have no built-in policy, so they are blocked until you list the ones you trust in `GUARDRAIL_ALLOW_TOOLS` (they then run unchecked).
+{{/if}}
+
+### What is not enforced
+
+- Trades whose input amount is not USD-denominated (for example selling ETH or another volatile token) have no USD cap; the scaffold does not price tokens.
+- `STOP_LOSS_PCT` is strategy guidance; the scaffold does not monitor positions and exit automatically.
+{{#if isBankr}}
+- With `BANKR_ALLOW_EXECUTE=true`, Bankr checks are best-effort pattern matching on the prompt, not a guarantee.
+{{/if}}
+- Tools listed in `GUARDRAIL_ALLOW_TOOLS` run without any checks.
+- Leverage is not capped.
+
+### Loosening the guardrails
+
+These are operator controls. You can loosen them by adding addresses to `ALLOWED_ADDRESSES`, raising or disabling `MAX_TRADE_USD` (`unlimited`), raising `SLIPPAGE_PCT`/`MAX_POSITION_PCT`, listing tools in `GUARDRAIL_ALLOW_TOOLS`{{#if isCdpServerWallet}}, setting `ALLOW_ARBITRARY_CALLDATA=true`{{/if}}{{#if isBankr}}, setting `BANKR_ALLOW_EXECUTE=true`{{/if}}{{#if hasAnyX402}}, raising `MAX_X402_PAYMENT_USD`{{/if}}, or editing `src/guardrails.ts`. Every change widens what an agent acting on untrusted tool output can do with your funds.
+{{#if isSelfUpdating}}
+
+### Self-updating strategy
+
+Every `EVALUATION_INTERVAL_MINUTES`, the agent may propose a new strategy. By default the proposal is written to `prompts/strategy.proposed.md` and logged; it is **not** used as the system prompt until you review it and copy it into `prompts/strategy.md`. Set `AUTO_APPLY_STRATEGY_UPDATES=true` to apply proposals automatically (recorded in `strategy-history.json`).
+{{/if}}
 {{#if testMode}}
 
 ## Test Mode
@@ -137,6 +189,9 @@ src/
 {{/if}}
 prompts/
   strategy.md
+{{#if isSelfUpdating}}
+  strategy.proposed.md   # created when the agent proposes a strategy change
+{{/if}}
 ```
 
 ## Scaffold Source

@@ -23,6 +23,13 @@ import { wrapWithGuardrails } from "./guardrails.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const STRATEGY_PATH = resolve(__dirname, "../prompts/strategy.md");
+{{#if isSelfUpdating}}
+const PROPOSED_STRATEGY_PATH = resolve(__dirname, "../prompts/strategy.proposed.md");
+// Model-proposed strategy changes are only applied automatically when the operator opts in.
+const AUTO_APPLY_STRATEGY_UPDATES = /^(1|true|yes)$/i.test(
+  process.env.AUTO_APPLY_STRATEGY_UPDATES ?? "false"
+);
+{{/if}}
 const TEST_MODE = /^(1|true|yes)$/i.test(process.env.TEST_MODE ?? "{{testMode}}");
 const CYCLE_RESPONSE_FORMAT = `STATUS: [MONITORING | ANALYZING | EXECUTING | WAITING]
 ACTION: [What you did, or "None"]
@@ -73,6 +80,19 @@ function saveStrategyUpdate(
     "utf-8"
   );
   saveStrategy(newStrategy);
+}
+
+function saveStrategyProposal(proposedStrategy: string, reason: string): void {
+  const header = [
+    "<!--",
+    `Proposed by the agent at ${new Date().toISOString()}.`,
+    `Reason: ${reason.replace(/-->/g, "--")}`,
+    "This proposal is NOT active. Review it, then copy it into prompts/strategy.md to apply,",
+    "or set AUTO_APPLY_STRATEGY_UPDATES=true to let the agent apply proposals automatically.",
+    "-->",
+    "",
+  ].join("\n");
+  writeFileSync(PROPOSED_STRATEGY_PATH, header + proposedStrategy.trim() + "\n", "utf-8");
 }
 {{/if}}
 
@@ -430,8 +450,14 @@ async function main() {
 
   tools = normalizeToolSchemas(tools);
 
-  // Wrap tools with guardrail checks
-  tools = wrapWithGuardrails(tools);
+  // Default-deny guardrails: read-only tools pass, policy tools are checked, others blocked (see src/guardrails.ts)
+  tools = wrapWithGuardrails(tools, {
+    getWalletValueUsd: async () => {
+      const latest = await refreshFunding();
+      const total = Number(latest?.totalUsd);
+      return Number.isFinite(total) && total > 0 ? total : undefined;
+    },
+  });
 
   let agent = createReactAgent({ llm, tools, prompt: currentStrategy });
 {{#if isSelfUpdating}}
@@ -507,7 +533,11 @@ async function main() {
   }
 {{#if isSelfUpdating}}
   console.log(
-    `[{{name}}] Self-updating enabled. Evaluation interval: ${evaluationIntervalMinutes}m`
+    `[{{name}}] Self-updating enabled. Evaluation interval: ${evaluationIntervalMinutes}m. ${
+      AUTO_APPLY_STRATEGY_UPDATES
+        ? "AUTO_APPLY_STRATEGY_UPDATES=true: proposals become the system prompt without review."
+        : "Proposals are written to prompts/strategy.proposed.md for review (not auto-applied)."
+    }`
   );
 {{/if}}
 
@@ -549,7 +579,14 @@ Respond with ONLY valid JSON (no markdown, no code fences):
         }
         const parsed = JSON.parse(jsonMatch[0]);
         if (parsed.shouldUpdate && parsed.newStrategy) {
-          applyStrategyUpdate(parsed.newStrategy, `Auto-update: ${parsed.reason}`);
+          if (AUTO_APPLY_STRATEGY_UPDATES) {
+            applyStrategyUpdate(parsed.newStrategy, `Auto-update: ${parsed.reason}`);
+          } else {
+            saveStrategyProposal(String(parsed.newStrategy), String(parsed.reason ?? ""));
+            console.log(
+              `[${ts}] [STRATEGY] Proposed update written to prompts/strategy.proposed.md (not applied; set AUTO_APPLY_STRATEGY_UPDATES=true to auto-apply) — ${parsed.reason}`
+            );
+          }
         } else {
           console.log(`[${ts}] Strategy evaluation: keeping current strategy — ${parsed.reason}`);
         }
