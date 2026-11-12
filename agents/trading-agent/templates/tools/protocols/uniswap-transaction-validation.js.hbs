@@ -1,0 +1,208 @@
+export const UNISWAP_ROUTER_ADDRESSES = {
+  8453: [
+    "0xec8b0f7ffe3ae75d7ffab09429e3675bb63503e4",
+    "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad",
+    "0x6ff5693b99212da76ad316178a184ab56d299b43",
+    "0xfdf682f51fe81aa4898f0ae2163d8a55c127fbc7",
+    "0xd6145b2d3f379919e8cdeda7b97e37c4b2ca9c40"
+  ],
+  84532: [
+    "0x95273d871c8156636e114b63797d78d7e1720d81",
+    "0x8b844f885672f333bc0042cb669255f93a4c1e6b",
+    "0x8702463e73f74d0b6765abceb314ef07acb92650"
+  ]
+};
+
+const MSG_SENDER = "0x0000000000000000000000000000000000000001";
+const EXECUTE_SELECTORS = new Set(["0x3593564c", "0x24856bc3"]);
+const MAX_ROUTE_HOPS = 16;
+
+function fail(reason) {
+  return { valid: false, reason };
+}
+
+function normalizeAddress(value) {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
+    ? value.toLowerCase()
+    : null;
+}
+
+function parseUint(value) {
+  try {
+    if (typeof value === "bigint") return value >= 0n ? value : null;
+    if (typeof value === "number") return Number.isSafeInteger(value) && value >= 0 ? BigInt(value) : null;
+    if (typeof value !== "string" || !/^(?:0x[0-9a-fA-F]+|[0-9]+)$/.test(value.trim())) return null;
+    const parsed = BigInt(value.trim());
+    return parsed >= 0n ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeNumber(value) {
+  if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("ABI offset exceeds safe limits");
+  return Number(value);
+}
+
+function readWord(data, offsetBytes) {
+  if (!Number.isSafeInteger(offsetBytes) || offsetBytes < 0 || offsetBytes % 32 !== 0) {
+    throw new Error("Invalid ABI word offset");
+  }
+  const start = offsetBytes * 2;
+  const word = data.slice(start, start + 64);
+  if (word.length !== 64 || !/^[0-9a-fA-F]{64}$/.test(word)) throw new Error("Truncated ABI word");
+  return BigInt("0x" + word);
+}
+
+function readDynamicBytes(data, offsetBytes) {
+  const length = safeNumber(readWord(data, offsetBytes));
+  const startBytes = offsetBytes + 32;
+  const endBytes = startBytes + length;
+  if (endBytes > data.length / 2) throw new Error("Truncated ABI bytes value");
+  return data.slice(startBytes * 2, endBytes * 2);
+}
+
+function readBytesArray(data, offsetBytes) {
+  const count = safeNumber(readWord(data, offsetBytes));
+  if (count !== 1) throw new Error("Only a single-route swap command is supported; split or multi-command transactions are rejected");
+  const headStart = offsetBytes + 32;
+  const elementOffset = headStart + safeNumber(readWord(data, headStart));
+  return [readDynamicBytes(data, elementOffset)];
+}
+
+function wordAddress(value) {
+  const hex = value.toString(16).padStart(64, "0");
+  const address = "0x" + hex.slice(-40);
+  if (address === "0x0000000000000000000000000000000000000000") throw new Error("Zero address in swap command");
+  return address;
+}
+
+function decodeAddressArray(data, offsetBytes) {
+  const count = safeNumber(readWord(data, offsetBytes));
+  if (count < 2 || count > MAX_ROUTE_HOPS + 1) throw new Error("Unsupported V2 path length");
+  const addresses = [];
+  for (let i = 0; i < count; i += 1) {
+    addresses.push(wordAddress(readWord(data, offsetBytes + 32 + i * 32)));
+  }
+  return addresses;
+}
+
+function decodeV3Path(pathHex) {
+  const byteLength = pathHex.length / 2;
+  if (byteLength < 43 || (byteLength - 20) % 23 !== 0) throw new Error("Malformed V3 token path");
+  const hops = (byteLength - 20) / 23;
+  if (hops < 1 || hops > MAX_ROUTE_HOPS) throw new Error("Unsupported V3 path length");
+  const addresses = [];
+  let cursor = 0;
+  addresses.push("0x" + pathHex.slice(0, 40).toLowerCase());
+  for (let hop = 0; hop < hops; hop += 1) {
+    const fee = parseInt(pathHex.slice((cursor + 20) * 2, (cursor + 23) * 2), 16);
+    if (!Number.isInteger(fee) || fee <= 0 || fee > 1000000) throw new Error("Invalid V3 pool fee in path");
+    cursor += 23;
+    addresses.push("0x" + pathHex.slice(cursor * 2, cursor * 2 + 40).toLowerCase());
+  }
+  if (addresses.some((address) => !normalizeAddress(address) || address === "0x0000000000000000000000000000000000000000")) {
+    throw new Error("Invalid address in V3 token path");
+  }
+  return addresses;
+}
+
+function decodeExactInputCommand(command, inputData) {
+  if (inputData.length < 320) throw new Error("Truncated exact-input command");
+  const recipient = wordAddress(readWord(inputData, 0));
+  const amountIn = readWord(inputData, 32);
+  const amountOutMin = readWord(inputData, 64);
+  const pathOffset = safeNumber(readWord(inputData, 96));
+  const payerIsUser = readWord(inputData, 128);
+  if (payerIsUser !== 1n) throw new Error("Swap must spend only the requesting wallet's input tokens");
+  if (pathOffset < 160 || pathOffset % 32 !== 0) throw new Error("Invalid swap path offset");
+  let path;
+  if (command === 0x00) {
+    path = decodeV3Path(readDynamicBytes(inputData, pathOffset));
+  } else if (command === 0x08) {
+    path = decodeAddressArray(inputData, pathOffset);
+  } else {
+    throw new Error("Unsupported Universal Router command");
+  }
+  return { recipient, amountIn, amountOutMin, path };
+}
+
+function decodeUniversalRouterTransaction(data) {
+  if (typeof data !== "string" || !/^0x[0-9a-fA-F]+$/.test(data) || data.length % 2 !== 0) {
+    throw new Error("Swap calldata is not valid hex");
+  }
+  const selector = data.slice(0, 10).toLowerCase();
+  if (!EXECUTE_SELECTORS.has(selector)) throw new Error("Unsupported Universal Router entrypoint");
+  const args = data.slice(10);
+  if (args.length < 128 || args.length % 64 !== 0) throw new Error("Malformed Universal Router calldata");
+  const commandsOffset = safeNumber(readWord(args, 0));
+  const inputsOffset = safeNumber(readWord(args, 32));
+  if (commandsOffset < 64 || inputsOffset < 64 || commandsOffset % 32 !== 0 || inputsOffset % 32 !== 0) {
+    throw new Error("Invalid Universal Router argument offsets");
+  }
+  const commands = readDynamicBytes(args, commandsOffset);
+  const inputs = readBytesArray(args, inputsOffset);
+  if (commands.length !== 2 || inputs.length !== 1) throw new Error("Only one exact-input swap command is supported");
+  const command = parseInt(commands, 16);
+  if (command !== 0x00 && command !== 0x08) throw new Error("Only V2/V3 exact-input swaps are supported");
+  return decodeExactInputCommand(command, inputs[0]);
+}
+
+export function validateUniswapSwapTransaction({
+  tx,
+  chainId,
+  walletChainId,
+  walletAddress,
+  tokenIn,
+  tokenOut,
+  amountInRaw,
+  quoteAmountOutRaw,
+  slippagePct
+}) {
+  const chain = Number(parseUint(chainId));
+  if (!Number.isInteger(chain) || !UNISWAP_ROUTER_ADDRESSES[chain]) return fail("Unsupported chain for validated Uniswap swaps");
+  if (walletChainId !== null && walletChainId !== undefined && Number(parseUint(walletChainId)) !== chain) {
+    return fail("Connected wallet chain does not match the quote chain");
+  }
+  if (!tx || typeof tx !== "object") return fail("Missing swap transaction");
+  const wallet = normalizeAddress(walletAddress);
+  const inputToken = normalizeAddress(tokenIn);
+  const outputToken = normalizeAddress(tokenOut);
+  if (!wallet || !inputToken || !outputToken || inputToken === outputToken) return fail("Invalid wallet or token addresses");
+  const router = normalizeAddress(tx.to);
+  if (!router || !UNISWAP_ROUTER_ADDRESSES[chain].includes(router)) return fail("Swap target is not an official Uniswap Universal Router for this chain");
+  if (tx.from !== undefined && tx.from !== null && tx.from !== "" && normalizeAddress(tx.from) !== wallet) {
+    return fail("Swap transaction sender does not match the requesting wallet");
+  }
+  if (tx.chainId !== undefined && tx.chainId !== null && tx.chainId !== "") {
+    const responseChain = parseUint(tx.chainId);
+    if (responseChain === null || Number(responseChain) !== chain) return fail("Swap transaction chain does not match the quote chain");
+  }
+  const value = tx.value === undefined || tx.value === null || tx.value === "" ? 0n : parseUint(tx.value);
+  if (value === null || value !== 0n) return fail("Unexpected native-token value in ERC-20 swap transaction");
+  const amountIn = parseUint(amountInRaw);
+  const quoteAmountOut = parseUint(quoteAmountOutRaw);
+  if (amountIn === null || amountIn === 0n || quoteAmountOut === null || quoteAmountOut === 0n) {
+    return fail("Invalid exact-input amount or quote output");
+  }
+  if (typeof slippagePct !== "number" || !Number.isFinite(slippagePct) || slippagePct < 0 || slippagePct >= 100) {
+    return fail("Invalid slippage percentage");
+  }
+  const slippageBps = Math.ceil(slippagePct * 100);
+  if (slippageBps >= 10000) return fail("Slippage tolerance would permit a zero minimum output");
+  let swap;
+  try {
+    swap = decodeUniversalRouterTransaction(tx.data);
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : "Unable to decode swap transaction");
+  }
+  if (swap.recipient !== wallet && swap.recipient !== MSG_SENDER) return fail("Swap output recipient does not match the requesting wallet");
+  if (swap.amountIn !== amountIn) return fail("Encoded swap input amount does not match the quote");
+  if (swap.path[0] !== inputToken || swap.path[swap.path.length - 1] !== outputToken) {
+    return fail("Encoded swap path does not match the quoted input and output tokens");
+  }
+  if (swap.amountOutMin === 0n) return fail("Swap has no minimum output protection");
+  const minAllowed = quoteAmountOut * BigInt(10000 - slippageBps) / 10000n;
+  if (swap.amountOutMin < minAllowed) return fail("Encoded minimum output is looser than the quote's slippage bound");
+  return { valid: true, router, command: swap.path.length > 2 ? "multi-hop exact-input" : "exact-input" };
+}

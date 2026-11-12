@@ -9,6 +9,7 @@
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsup",
+    "test:uniswap-validation": "node --test test/uniswap-transaction-validation.test.mjs",
     "dev": "tsx src/index.ts",
     "prepublishOnly": "npm run build"
   },

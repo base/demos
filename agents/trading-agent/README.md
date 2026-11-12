@@ -72,7 +72,7 @@ Think of tools as capabilities you are granting the generated agent:
 
 | Tool | Use it for | Notes |
 | --- | --- | --- |
-| `uniswap` | Spot swaps on Base via Uniswap v3/v4. | CDP only. |
+| `uniswap` | Spot swaps on Base via Uniswap v2/v3. | CDP only. |
 | `aerodrome` | Spot swaps on Base via Aerodrome. | CDP only. |
 | `avantis` | Perps on Base. | CDP only. |
 | `virtuals` | ACP-based helper-agent delegation. | Useful when you want the trading agent to hire or coordinate other agents. |
@@ -82,6 +82,8 @@ Think of tools as capabilities you are granting the generated agent:
 | `agentcash-mcp` | Generic paid API access via MCP. | Works across wallet modes. |
 | `nansen-mcp` | Rich analytics via Nansen's MCP server. | Requires `NANSEN_API_KEY`. |
 | `nansen-x402` | Nansen analytics over x402. | Pay-per-request, CDP path only. |
+
+Uniswap swaps fail closed unless the returned transaction is a supported Base Universal Router exact-input route with the expected router, recipient, token path, input amount, and quote-derived minimum output. Split or multi-command routes are rejected. These checks run in the agent process; they are not wallet-wide onchain spending limits.
 
 Practical defaults:
 

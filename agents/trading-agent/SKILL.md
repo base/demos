@@ -68,6 +68,7 @@ Default posture:
 - `test mode` is live on Base mainnet with smaller recommended balances and faster cadence. It is validation mode, not simulation.
 - `self-updating` periodically re-evaluates strategy instructions. Use it only when adaptive behavior is desired.
 - Guardrails start with slippage, stop-loss, and max position size; they can be changed later in `src/guardrails.ts`.
+- Uniswap transactions are checked before signing against supported Base routers, the requested exact-input token path/amount/recipient, and the quote-derived minimum output. Split or multi-command routes fail closed; this agent-level check is not a wallet-wide onchain policy.
 
 ## Interactive Workflow
 
