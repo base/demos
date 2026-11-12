@@ -1,6 +1,8 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { parseUnits, formatUnits, type Address } from "viem";
+import { guardrailConfig } from "../../guardrails.js";
+import { validateUniswapSwapTransaction } from "./uniswap-transaction-validation.js";
 import { okResult, errorResult, normalizeError } from "../../tool-result.js";
 
 const TRADING_API = "https://trade-api.gateway.uniswap.org/v1";
@@ -26,19 +28,16 @@ function apiHeaders(): Record<string, string> {
   return { "Content-Type": "application/json", "x-api-key": key };
 }
 
-// Handles response shape across Trading API versions and routing types
+// Extract the raw quoted output for exact min-output validation before execution.
+function extractAmountOutRaw(q: any): bigint | null {
+  const raw = q?.output?.amount ?? q?.quote ?? q?.expectedAmountOut ?? q?.orderInfo?.outputs?.[0]?.startAmount;
+  if (raw === undefined || raw === null || raw === "") return null;
+  try { const amount = BigInt(raw); return amount > 0n ? amount : null; } catch { return null; }
+}
+
 function extractAmountOut(q: any, outDecimals: number): string | null {
-  const raw =
-    q?.output?.amount ??       // new Trading API classic route
-    q?.quote ??                // old routing-api (nested quote.quote field)
-    q?.expectedAmountOut ??    // priority/dutch quotes
-    q?.orderInfo?.outputs?.[0]?.startAmount; // dutch v2
-  if (!raw) return null;
-  try {
-    return formatUnits(BigInt(raw), outDecimals);
-  } catch {
-    return null;
-  }
+  const raw = extractAmountOutRaw(q);
+  return raw === null ? null : formatUnits(raw, outDecimals);
 }
 
 async function postQuote(body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: any; text: string }> {
@@ -186,7 +185,15 @@ export function getUniswapTools(wallet: any) {
       }),
       func: async ({ tokenIn, tokenOut, amountIn, slippagePct }) => {
         try {
-          const slip = slippagePct ?? 0.5;
+          const maxSlippagePct = guardrailConfig.slippagePct;
+          if (!Number.isFinite(maxSlippagePct) || maxSlippagePct < 0 || maxSlippagePct >= 100) {
+            return errorResult("Configured slippage limit is invalid.");
+          }
+          const requestedSlippagePct = slippagePct ?? Math.min(0.5, maxSlippagePct);
+          if (!Number.isFinite(requestedSlippagePct) || requestedSlippagePct < 0) {
+            return errorResult("Requested slippage percentage is invalid.");
+          }
+          const slip = Math.min(requestedSlippagePct, maxSlippagePct);
           const inToken = resolveToken(tokenIn);
           const outToken = resolveToken(tokenOut);
           if (!inToken || !outToken) {
@@ -195,10 +202,18 @@ export function getUniswapTools(wallet: any) {
           if (!walletAddress) {
             return errorResult("Wallet address is unavailable for Uniswap swaps.");
           }
+          if (CHAIN_ID !== 8453 && CHAIN_ID !== 84532) {
+            return errorResult("Validated Uniswap swaps are supported only on Base Mainnet and Base Sepolia.");
+          }
+          const walletChainId = wallet?.publicClient?.chain?.id ?? wallet?.chain?.id ?? null;
+          if (walletChainId !== null && walletChainId !== undefined && Number(walletChainId) !== CHAIN_ID) {
+            return errorResult("Connected wallet chain does not match the configured Base chain.");
+          }
           if (typeof wallet.executeTransaction !== "function") {
             return errorResult("Wallet adapter does not support direct transaction execution.");
           }
           const amountInRaw = parseUnits(amountIn, inToken.decimals).toString();
+          if (BigInt(amountInRaw) <= 0n) return errorResult("Swap input amount must be greater than zero.");
 
           // Step 1: quote
           const { ok: qOk, status: qStatus, data: quoteData, text: qText } = await postQuote({
@@ -215,6 +230,11 @@ export function getUniswapTools(wallet: any) {
           });
           if (!qOk) return errorResult(`quote HTTP ${qStatus}`, { body: qText });
 
+          const quoteAmountOutRaw = extractAmountOutRaw(quoteData?.quote);
+          if (quoteAmountOutRaw === null) {
+            return errorResult("Could not extract a positive quoted amountOut.", { rawResponse: quoteData });
+          }
+
           // Step 2: swap calldata
           const swapRes = await fetch(`${TRADING_API}/swap`, {
             method: "POST",
@@ -227,17 +247,32 @@ export function getUniswapTools(wallet: any) {
 
           const swapData = JSON.parse(swapText);
           const tx = swapData.swap;
-          const amountOut = extractAmountOut(quoteData?.quote, outToken.decimals);
           if (!tx?.to || !tx?.data) {
             return errorResult("Uniswap swap response did not include executable transaction calldata.", {
               rawResponse: swapData,
             });
           }
 
+          const validation = validateUniswapSwapTransaction({
+            tx,
+            chainId: CHAIN_ID,
+            walletChainId,
+            walletAddress,
+            tokenIn: inToken.address,
+            tokenOut: outToken.address,
+            amountInRaw,
+            quoteAmountOutRaw: quoteAmountOutRaw.toString(),
+            slippagePct: slip,
+          });
+          if (!validation.valid) {
+            console.warn("[guardrail] Blocked uniswap_swap: " + validation.reason);
+            return errorResult("[guardrail] Blocked uniswap_swap: " + validation.reason, { guardrail: true });
+          }
+          const amountOut = formatUnits(quoteAmountOutRaw, outToken.decimals);
           const execution = await wallet.executeTransaction({
-            to: tx.to as `0x${string}`,
-            data: tx.data as `0x${string}`,
-            valueWei: tx.value ?? "0",
+            to: validation.router as Address,
+            data: tx.data as any,
+            valueWei: "0",
           });
 
           return JSON.stringify({

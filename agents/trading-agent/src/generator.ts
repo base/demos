@@ -184,6 +184,12 @@ export function generate(config: ScaffoldConfig): string {
       const toolTemplate = path.join(templatesDir, `tools/${subfolder}/${tool}.ts.hbs`);
       const toolContent = renderTemplate(toolTemplate, data);
       writeFile(path.join(outDir, `src/tools/${subfolder}/${tool}.ts`), toolContent);
+
+      if (tool === "uniswap") {
+        const validationTemplate = path.join(templatesDir, "tools/protocols/uniswap-transaction-validation.js.hbs");
+        const validationContent = renderTemplate(validationTemplate, data);
+        writeFile(path.join(outDir, "src/tools/protocols/uniswap-transaction-validation.js"), validationContent);
+      }
     }
 
     // x402 shared client (if any x402 tools selected)
