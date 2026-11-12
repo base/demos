@@ -1,1 +1,15 @@
-export type UniswapSwapValidationResult =\n  | { valid: true; router: string; command: string }\n  | { valid: false; reason: string };\n\nexport function validateUniswapSwapTransaction(input: {\n  tx: any;\n  chainId: number | string | bigint;\n  walletChainId?: number | string | bigint | null;\n  walletAddress: string;\n  tokenIn: string;\n  tokenOut: string;\n  amountInRaw: number | string | bigint;\n  quoteAmountOutRaw: number | string | bigint;\n  slippagePct: number;\n}): UniswapSwapValidationResult;\n
+export type UniswapSwapValidationResult =
+  | { valid: true; router: string; command: string }
+  | { valid: false; reason: string };
+
+export function validateUniswapSwapTransaction(input: {
+  tx: any;
+  chainId: number | string | bigint;
+  walletChainId?: number | string | bigint | null;
+  walletAddress: string;
+  tokenIn: string;
+  tokenOut: string;
+  amountInRaw: number | string | bigint;
+  quoteAmountOutRaw: number | string | bigint;
+  slippagePct: number;
+}): UniswapSwapValidationResult;
