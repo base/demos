@@ -189,6 +189,9 @@ export function generate(config: ScaffoldConfig): string {
         const validationTemplate = path.join(templatesDir, "tools/protocols/uniswap-transaction-validation.js.hbs");
         const validationContent = renderTemplate(validationTemplate, data);
         writeFile(path.join(outDir, "src/tools/protocols/uniswap-transaction-validation.js"), validationContent);
+        const validationTypesTemplate = path.join(templatesDir, "tools/protocols/uniswap-transaction-validation.d.ts.hbs");
+        const validationTypesContent = renderTemplate(validationTypesTemplate, data);
+        writeFile(path.join(outDir, "src/tools/protocols/uniswap-transaction-validation.d.ts"), validationTypesContent);
       }
     }
 
