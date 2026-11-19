@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="fc:frame" content="vNext">
+  <meta name="base:app_id" content="6a2421d7ee0157745851b2b2">
+  <title>BaseBookvsMovie</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>📚 Book vs 🎬 Movie</h1>
+      <p class="subtitle">Vote and earn 100 CSM per vote</p>
+      <div id="wallet-section">
+        <button id="connect-btn">Connect Wallet</button>
+        <span id="wallet-address" hidden></span>
+        <div id="balance-info" hidden>
+          <span id="csm-balance">0</span> CSM
+        </div>
+      </div>
+    </header>
+
+    <div id="status" class="status"></div>
+
+    <main id="titles-container">
+      <!-- Titles will be rendered here -->
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

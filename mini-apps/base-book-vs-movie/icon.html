@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head><title>Generate Icons</title></head>
+<body>
+  <canvas id="icon" width="200" height="200"></canvas>
+  <canvas id="preview" width="600" height="400"></canvas>
+  <br><br>
+  <button onclick="downloadIcon()">Download icon.png</button>
+  <button onclick="downloadPreview()">Download preview.png</button>
+
+  <script>
+    // Icon 200x200
+    const icon = document.getElementById('icon');
+    const ctx = icon.getContext('2d');
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, 200, 200);
+    ctx.fillStyle = '#0052ff';
+    ctx.beginPath();
+    ctx.roundRect(10, 10, 180, 180, 20);
+    ctx.fill();
+    ctx.font = 'bold 80px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('📚', 100, 90);
+    ctx.fillText('🎬', 100, 155);
+
+    // Preview 600x400
+    const preview = document.getElementById('preview');
+    const pctx = preview.getContext('2d');
+    pctx.fillStyle = '#0a0a0f';
+    pctx.fillRect(0, 0, 600, 400);
+    pctx.fillStyle = '#0052ff';
+    pctx.beginPath();
+    pctx.roundRect(0, 0, 600, 400, 0);
+    pctx.fill();
+    pctx.fillStyle = '#ffffff';
+    pctx.font = 'bold 48px sans-serif';
+    pctx.textAlign = 'center';
+    pctx.fillText('📚 Book vs 🎬 Film', 300, 160);
+    pctx.font = '24px sans-serif';
+    pctx.fillStyle = '#aaaaff';
+    pctx.fillText('Vote & Earn 100 CSM on Base', 300, 220);
+    pctx.font = '20px sans-serif';
+    pctx.fillStyle = '#888';
+    pctx.fillText('basebookvsmovie.vercel.app', 300, 320);
+
+    function downloadIcon() {
+      const a = document.createElement('a');
+      a.download = 'icon.png';
+      a.href = icon.toDataURL();
+      a.click();
+    }
+
+    function downloadPreview() {
+      const a = document.createElement('a');
+      a.download = 'preview.png';
+      a.href = preview.toDataURL();
+      a.click();
+    }
+  </script>
+</body>
+</html>
