@@ -13,6 +13,8 @@ export class RationalAccumulator {
   private denominator = 1n
 
   accrue(rate: StreamRate, elapsedMicros: bigint): bigint {
+    if (rate.amountUnits < 0n) throw new RangeError('Stream rate amount cannot be negative')
+    if (rate.periodMicros <= 0n) throw new RangeError('Stream rate period must be greater than zero')
     if (elapsedMicros <= 0n) return 0n
     const incrementNumerator = rate.amountUnits * elapsedMicros
     const incrementDenominator = rate.periodMicros
