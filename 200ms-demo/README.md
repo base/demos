@@ -49,6 +49,19 @@ Open the printed local Vite URL. A fresh browser profile takes roughly 12–20
 seconds to receive both faucet drips because Vibenet enforces a shared ten-second
 IP cooldown.
 
+## Run local checks
+
+Before using the live demo, run the deterministic math test and production build:
+
+```bash
+npm run test:math
+npm run build
+```
+
+`test:math` checks exact value accumulation over a full monthly interval and
+across a rate change. It runs locally and does not connect to Vibenet or send
+transactions. `build` type-checks the app and creates the production bundle.
+
 Once setup completes, choose a rate and press **Start stream**. The counter only
 reveals confirmed value; accepted but unconfirmed value remains visually
 separate until it lands.
