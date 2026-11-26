@@ -41,7 +41,7 @@ export function parseDecimalUnits(value: string, decimals = TOKEN_DECIMALS): big
   }
 
   const normalized = value.trim()
-  if (!/^\\d+(?:\\.\\d*)?$/.test(normalized)) throw new Error('Enter a positive number')
+  if (!/^\d+(?:\.\d*)?$/.test(normalized)) throw new Error('Enter a positive number')
   const [whole, fraction = ''] = normalized.split('.')
   if (fraction.length > decimals) {
     throw new Error(`Amount supports at most ${decimals} decimal places`)
