@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "spike": "node scripts/spike.mjs",
     "soak": "SPIKE_TRANSFERS=1500 SPIKE_AUTO_TOPUP=1 node scripts/spike.mjs",
-    "test:math": "node --experimental-strip-types scripts/test-rate-math.ts"
+    "test:math": "node --experimental-strip-types scripts/test-rate-math.ts",
+    "test:format": "node --experimental-strip-types scripts/test-format.ts"
   },
   "dependencies": {
     "@vibenet/aa": "file:./vendor/aa",

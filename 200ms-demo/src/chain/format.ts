@@ -1,4 +1,4 @@
-import { TOKEN_DECIMALS } from './config'
+import { TOKEN_DECIMALS } from './config.ts'
 
 export function formatUnits(value: bigint, decimals = TOKEN_DECIMALS, maxFraction = decimals): string {
   const negative = value < 0n
@@ -36,9 +36,16 @@ export function formatDuration(milliseconds: number): string {
 }
 
 export function parseDecimalUnits(value: string, decimals = TOKEN_DECIMALS): bigint {
+  if (!Number.isSafeInteger(decimals) || decimals < 0) {
+    throw new RangeError('Token decimals must be a non-negative safe integer')
+  }
+
   const normalized = value.trim()
   if (!/^\d+(?:\.\d*)?$/.test(normalized)) throw new Error('Enter a positive number')
   const [whole, fraction = ''] = normalized.split('.')
-  const padded = fraction.padEnd(decimals, '0').slice(0, decimals)
+  if (fraction.length > decimals) {
+    throw new Error(`Amount supports at most ${decimals} decimal places`)
+  }
+  const padded = fraction.padEnd(decimals, '0')
   return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(padded || '0')
 }
