@@ -28,4 +28,31 @@ const secondHalf = changed.accrue(second, 1_800_000_000n)
 assert.equal(firstHalf + secondHalf, 52_500_000n, 'rate changes must preserve the exact accrued value')
 assert.deepEqual(changed.fraction(), { numerator: 0n, denominator: 1n })
 
+// A fractional remainder must survive a rate change with a different denominator.
+const fractional = new RationalAccumulator()
+const oneThird: StreamRate = { ...monthly, amountUnits: 1n, periodMicros: 3n }
+const oneHalf: StreamRate = { ...monthly, amountUnits: 1n, periodMicros: 2n }
+assert.equal(fractional.accrue(oneThird, 1n), 0n)
+assert.deepEqual(fractional.fraction(), { numerator: 1n, denominator: 3n })
+assert.equal(fractional.accrue(oneHalf, 1n), 0n)
+assert.deepEqual(fractional.fraction(), { numerator: 5n, denominator: 6n })
+assert.equal(fractional.accrue(oneHalf, 1n), 1n)
+assert.deepEqual(fractional.fraction(), { numerator: 1n, denominator: 3n })
+
+// Non-positive elapsed time must not change the carried fractional value.
+assert.equal(fractional.accrue(oneHalf, 0n), 0n)
+assert.equal(fractional.accrue(oneHalf, -1n), 0n)
+assert.deepEqual(fractional.fraction(), { numerator: 1n, denominator: 3n })
+
+// Splitting a duration into scheduler-sized ticks must equal one combined accrual.
+const split = new RationalAccumulator()
+const combined = new RationalAccumulator()
+let splitTotal = 0n
+for (let index = 0; index < 5_000; index += 1) {
+  splitTotal += split.accrue(monthly, 200_000n)
+}
+const combinedTotal = combined.accrue(monthly, 1_000_000_000n)
+assert.equal(splitTotal, combinedTotal, 'tick partitioning must not change the accrued total')
+assert.deepEqual(split.fraction(), combined.fraction())
+
 console.log('Exact rational accumulator checks passed.')
